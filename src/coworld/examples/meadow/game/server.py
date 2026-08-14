@@ -52,6 +52,10 @@ GAME_PORT = int(os.environ.get("COGAME_PORT", "8080"))
 # finish in under a second, and exiting immediately races anything that
 # connected while the game was live.
 POST_GAME_LINGER_SECONDS = float(os.environ.get("COWORLD_MEADOW_POST_GAME_LINGER_SECONDS", "30"))
+# Hard ceiling on the post-game hold: even with a viewer attached (the hosted
+# certifier holds /global open while it waits for player pods, which can take
+# a minute on cold nodes), the server eventually exits.
+POST_GAME_MAX_LINGER_SECONDS = float(os.environ.get("COWORLD_MEADOW_POST_GAME_MAX_LINGER_SECONDS", "90"))
 
 RAW_CONFIG: dict[str, Any] = json.loads(read_data(os.environ["COGAME_CONFIG_URI"]))
 RESULTS_URI = os.environ["COGAME_RESULTS_URI"]
@@ -88,6 +92,7 @@ class GameSession:
         self.done = False
         self.paused = False
         self.round_seconds = ROUND_SECONDS
+        self.global_viewers = 0
 
 
 session = GameSession()
@@ -116,25 +121,46 @@ def player_client() -> HTMLResponse:
 @app.websocket("/global")
 async def global_viewer(websocket: WebSocket) -> None:
     await websocket.accept()
-    sender = asyncio.create_task(_send_global_snapshots(websocket))
-    receiver = asyncio.create_task(_drain_messages(websocket))
-    done, pending = await asyncio.wait({sender, receiver}, return_when=asyncio.FIRST_COMPLETED)
-    for task in pending:
-        task.cancel()
-    await asyncio.gather(*pending, return_exceptions=True)
-    for task in done:
-        task.result()
+    session.global_viewers += 1
+    try:
+        sender = asyncio.create_task(_send_global_snapshots(websocket))
+        receiver = asyncio.create_task(_drain_messages(websocket))
+        done, pending = await asyncio.wait({sender, receiver}, return_when=asyncio.FIRST_COMPLETED)
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        for task in done:
+            task.result()
+    finally:
+        session.global_viewers -= 1
+
+
+GLOBAL_KEEPALIVE_SECONDS = 15.0
+GLOBAL_MIN_SEND_INTERVAL_SECONDS = 1.0
 
 
 async def _send_global_snapshots(websocket: WebSocket) -> None:
+    # Send only on game progress (round/done/collapse), coalesced to at most
+    # one message per second, plus a slow keepalive. The hosted certifier
+    # holds this socket WITHOUT reading while it verifies player pods, and its
+    # websocket client stops reading the transport — including Pong frames —
+    # once ~16 messages sit unread. An unconditional 2Hz stream fills that
+    # budget during any pod-start delay and the certification ping then times
+    # out against a perfectly healthy server, so the total sent while a viewer
+    # isn't reading must stay far below that queue limit.
+    loop = asyncio.get_running_loop()
     await websocket.send_json(_snapshot())
-    while not session.done:
+    sent_at = loop.time()
+    sent_progress = (session.engine.round, session.done, session.engine.collapsed)
+    while True:
         await asyncio.sleep(0.5)
-        await websocket.send_json(_snapshot())
-    await websocket.send_json(_snapshot())
-    # Hold the connection through the post-game linger so probes that attached
-    # while the game was live can still ping and read the final state.
-    await asyncio.sleep(POST_GAME_LINGER_SECONDS)
+        now = loop.time()
+        progress = (session.engine.round, session.done, session.engine.collapsed)
+        changed = progress != sent_progress and now - sent_at >= GLOBAL_MIN_SEND_INTERVAL_SECONDS
+        if changed or now - sent_at >= GLOBAL_KEEPALIVE_SECONDS:
+            await websocket.send_json(_snapshot())
+            sent_at = now
+            sent_progress = progress
 
 
 async def _drain_messages(websocket: WebSocket) -> None:
@@ -212,13 +238,17 @@ async def _play_game() -> None:
 
     results = _results()
     logger.info("game finished after %d rounds, scores=%s", session.engine.round, results["scores"])
-    write_data(
+    # Artifact writes are blocking HTTP; off the event loop so websocket pings
+    # (the hosted certifier probes /global right around game end) still answer.
+    await asyncio.to_thread(
+        write_data,
         RESULTS_URI,
         json.dumps(results),
         content_type="application/json",
         http_method=artifact_method("COGAME_RESULTS_METHOD"),
     )
-    write_data(
+    await asyncio.to_thread(
+        write_data,
         REPLAY_URI,
         json.dumps(_replay_payload(results)),
         content_type="application/json",
@@ -228,7 +258,11 @@ async def _play_game() -> None:
     session.done = True
     for slot, websocket in session.players.items():
         await websocket.send_json({**_player_observation(slot), "type": "final", "done": True})
-    await asyncio.sleep(POST_GAME_LINGER_SECONDS)
+    # Linger, extending while any global viewer is still attached (bounded).
+    linger_until = loop.time() + POST_GAME_LINGER_SECONDS
+    hard_stop = loop.time() + POST_GAME_MAX_LINGER_SECONDS
+    while loop.time() < hard_stop and (loop.time() < linger_until or session.global_viewers > 0):
+        await asyncio.sleep(0.5)
     server.should_exit = True
     await asyncio.sleep(0.5)
 
