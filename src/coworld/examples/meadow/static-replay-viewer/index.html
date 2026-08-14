@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meadow — episode replay</title>
+<style>
+  /* Field-ledger palette: warm ink on cream, meadow green that dies to loam. */
+  :root {
+    --ink: #2b2419;
+    --ink-soft: #6b5f4c;
+    --paper: #f7f3e9;
+    --paper-deep: #efe8d8;
+    --meadow: #4a7c46;
+    --meadow-deep: #2f5a2e;
+    --loam: #8a6f4d;
+    --danger: #b4552e;
+    --gold: #b8860b;
+    --hairline: #d8cfba;
+    --serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    --sans: -apple-system, 'Segoe UI', system-ui, sans-serif;
+    --mono: 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  #stage-wrap {
+    flex: 0 0 auto;
+    width: 100%;
+    background: var(--paper);
+    line-height: 0;
+    position: relative;
+  }
+  #stage { width: 100%; height: auto; display: block; }
+  #controls {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    padding: 6px 12px;
+    line-height: normal;
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    background: rgba(247, 243, 233, 0.88);
+    backdrop-filter: blur(3px);
+    border-top: 1px solid var(--hairline);
+    opacity: 0.25;
+    transition: opacity 0.25s;
+  }
+  #stage-wrap:hover #controls, #controls:focus-within { opacity: 1; }
+  #controls button {
+    background: var(--ink);
+    border: none;
+    border-radius: 6px;
+    color: var(--paper);
+    cursor: pointer;
+    height: 30px;
+    width: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #controls button svg { display: block; }
+  #speed {
+    background: transparent;
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 5px 6px;
+  }
+  #scrubber { flex: 1; accent-color: var(--meadow-deep); }
+  #turn-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-soft);
+    min-width: 88px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  #transcript {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 12px 18px 24px;
+    border-top: 1px solid var(--hairline);
+    background: var(--paper-deep);
+  }
+  #transcript h2 {
+    color: var(--ink-soft);
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    margin: 6px 0 10px;
+    text-transform: uppercase;
+  }
+  .turn-block { margin-bottom: 4px; }
+  .turn-mark {
+    color: var(--ink-soft);
+    font-family: var(--mono);
+    font-size: 11px;
+    margin: 10px 0 4px;
+  }
+  .msg { font-size: 13px; line-height: 1.45; margin: 2px 0; max-width: 78ch; }
+  .msg b { font-family: var(--serif); }
+  .msg.future { opacity: 0.35; }
+  .sanction-line {
+    color: var(--danger);
+    font-size: 12.5px;
+    font-weight: 600;
+    margin: 3px 0;
+  }
+  .rationed-line { color: var(--loam); font-size: 12px; font-style: italic; margin: 3px 0; }
+  #error-card {
+    background: var(--paper);
+    border: 2px solid var(--danger);
+    border-radius: 10px;
+    color: var(--ink);
+    font-family: var(--serif);
+    margin: 12vh auto;
+    max-width: 520px;
+    padding: 26px 30px;
+    display: none;
+  }
+  #error-card h1 { font-size: 22px; margin: 0 0 8px; }
+  #error-card p { color: var(--ink-soft); font-family: var(--sans); font-size: 14px; margin: 0; overflow-wrap: anywhere; }
+  /* Small embeds: the SVG stage is the whole story. */
+  @media (max-height: 460px) {
+    #transcript { display: none; }
+    #controls { padding: 4px 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="stage-wrap">
+  <svg id="stage" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid meet" role="img"
+       aria-label="Meadow episode replay: shared stock over turns, standings, and table talk">
+    <defs>
+      <linearGradient id="meadow-fill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#6f9e5f" />
+        <stop offset="100%" stop-color="#3f6f3c" />
+      </linearGradient>
+      <linearGradient id="loam-fill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#a08153" />
+        <stop offset="100%" stop-color="#6e5638" />
+      </linearGradient>
+      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#f2ecdc" />
+        <stop offset="100%" stop-color="#f7f3e9" />
+      </linearGradient>
+      <filter id="paper-grain">
+        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" result="noise" />
+        <feColorMatrix in="noise" type="matrix"
+          values="0 0 0 0 0.16  0 0 0 0 0.13  0 0 0 0 0.09  0 0 0 0.035 0" />
+        <feComposite operator="over" in2="SourceGraphic" />
+      </filter>
+    </defs>
+    <g id="svg-root"></g>
+  </svg>
+  <div id="controls">
+  <button id="play" aria-label="Pause">
+    <svg width="12" height="14" viewBox="0 0 12 14" id="play-glyph"></svg>
+  </button>
+  <select id="speed" aria-label="Playback speed">
+    <option value="0.5">0.5×</option>
+    <option value="1" selected>1×</option>
+    <option value="2">2×</option>
+    <option value="4">4×</option>
+  </select>
+  <input id="scrubber" type="range" min="0" max="0" value="0" aria-label="Scrub turns" />
+  <span id="turn-label"></span>
+  </div>
+</div>
+<section id="transcript" aria-label="Full table talk">
+  <h2>Table talk — the full transcript</h2>
+  <div id="transcript-body"></div>
+</section>
+<div id="error-card"><h1>Replay unavailable</h1><p id="error-detail"></p></div>
+
+<script>
+'use strict';
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const W = 1280, H = 720;
+const BAND_TOP = 128;           // header + scorebug rows end here
+const CHART = { x: 56, y: BAND_TOP + 26, w: W - 100, h: 356 };
+const TICKER_Y = 626;
+const BASE_DWELL_MS = 900;      // per-turn dwell at 1x
+const MIN_DWELL_MS = 400;       // beats stay readable at any speed
+const CURTAIN_MS = 2000;        // collapse curtain hold (divided by speed, floored)
+const END_HOLD_MS = 5000;
+
+const state = {
+  replay: null,     // normalized {config, names, frames, results, collapseTurn}
+  turn: 0,
+  playing: true,
+  speed: 1,
+  highlight: null,  // slot or null
+  overlayUntil: 0,  // wall-clock ms while a beat overlay holds
+  endHoldUntil: 0,
+};
+
+function el(name, attrs, text) {
+  const node = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs || {})) node.setAttribute(key, value);
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function fail(detail) {
+  document.getElementById('stage-wrap').style.display = 'none';
+  document.getElementById('controls').style.display = 'none';
+  document.getElementById('transcript').style.display = 'none';
+  const card = document.getElementById('error-card');
+  card.style.display = 'block';
+  document.getElementById('error-detail').textContent = detail;
+}
+
+function shortModelName(modelId, slot) {
+  for (const marker of ['haiku', 'sonnet', 'opus', 'fable', 'mythos']) {
+    const at = modelId.indexOf(marker);
+    if (at >= 0) {
+      const tail = modelId.slice(at + marker.length).split('-2')[0].replace(/^-/, '').replace(/-/g, '.');
+      return tail ? `${marker}-${tail} ${slot}` : `${marker} ${slot}`;
+    }
+  }
+  return `P${slot}`;
+}
+
+function normalize(raw) {
+  if (!raw || !Array.isArray(raw.frames) || raw.frames.length === 0) return null;
+  const frames = raw.frames;
+  const n = frames[0].demands ? frames[0].demands.length : 0;
+  if (!n) return null;
+  let names = raw.player_names;
+  if (!names && Array.isArray(raw.seat_models)) {
+    names = raw.seat_models.map((m, i) => shortModelName(m, i));
+  }
+  if (!names) names = Array.from({ length: n }, (_, i) => `P${i}`);
+  const last = frames[frames.length - 1];
+  const results = raw.results || {
+    scores: last.scores,
+    welfare: Math.round((last.scores.reduce((a, b) => a + b, 0) + last.stock_after_regrowth) * 1000) / 1000,
+    final_stock: last.stock_after_regrowth,
+    collapse_round: (frames.find((f) => f.collapsed) || { round: null }).round,
+    rounds: frames.length,
+  };
+  const collapseFrame = frames.findIndex((f) => f.collapsed);
+  return {
+    config: raw.config || {},
+    names,
+    frames,
+    results,
+    collapseTurn: collapseFrame >= 0 ? collapseFrame : null,
+  };
+}
+
+// --- geometry -------------------------------------------------------------
+function xAt(i, count) { return CHART.x + (i * CHART.w) / Math.max(count - 1, 1); }
+function yAt(value, capacity) { return CHART.y + CHART.h - (Math.max(value, 0) / capacity) * CHART.h; }
+function regrowthAt(stock, cfg) {
+  const rate = cfg.regrowth_rate ?? 0.35, cap = cfg.stock_capacity ?? 100;
+  return rate * stock * (1 - stock / cap);
+}
+
+// --- static scene (drawn once per replay) --------------------------------
+function drawScene() {
+  const root = document.getElementById('svg-root');
+  root.textContent = '';
+  const { frames, config } = state.replay;
+  const cap = config.stock_capacity ?? 100;
+  const threshold = config.collapse_threshold ?? 10;
+  const count = frames.length;
+
+  root.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: 'url(#sky)' }));
+
+  // Header eyebrow + wordmark
+  root.appendChild(el('text', {
+    x: CHART.x, y: 34, fill: '#6b5f4c', 'font-family': 'var(--sans)', 'font-size': 12,
+    'font-weight': 700, 'letter-spacing': '2.2', style: 'text-transform:uppercase',
+  }, 'COWORLD · MEADOW · EPISODE REPLAY'));
+  root.appendChild(el('text', {
+    x: CHART.x, y: 66, fill: '#2b2419', 'font-family': 'var(--serif)', 'font-size': 30,
+  }, 'The Meadow'));
+
+  // Clock (top right, updated per turn)
+  const clock = el('text', {
+    id: 'clock', x: W - 44, y: 42, fill: '#2b2419', 'text-anchor': 'end',
+    'font-family': 'var(--mono)', 'font-size': 16, 'font-weight': 600,
+  });
+  root.appendChild(clock);
+  const clockSub = el('text', {
+    id: 'clock-sub', x: W - 44, y: 64, fill: '#6b5f4c', 'text-anchor': 'end',
+    'font-family': 'var(--mono)', 'font-size': 12,
+  });
+  root.appendChild(clockSub);
+
+  // Scorebug band (chips filled per turn)
+  root.appendChild(el('g', { id: 'scorebug' }));
+  root.appendChild(el('line', {
+    x1: CHART.x, y1: BAND_TOP - 2, x2: W - 44, y2: BAND_TOP - 2, stroke: '#d8cfba', 'stroke-width': 1,
+  }));
+
+  // Reference lines
+  const refs = [
+    { v: cap, label: 'capacity', color: '#c9bfa6', dash: '2 6' },
+    { v: cap / 2, label: 'peak regrowth', color: '#4a7c46', dash: '7 5' },
+    { v: threshold, label: 'point of no return', color: '#b4552e', dash: '7 5' },
+  ];
+  for (const ref of refs) {
+    const y = yAt(ref.v, cap);
+    root.appendChild(el('line', { x1: CHART.x, y1: y, x2: CHART.x + CHART.w, y2: y, stroke: ref.color, 'stroke-dasharray': ref.dash, 'stroke-width': 1.4 }));
+    root.appendChild(el('text', { x: CHART.x + CHART.w - 6, y: y - 5, fill: ref.color, 'text-anchor': 'end', 'font-family': 'var(--sans)', 'font-size': 10.5, 'font-weight': 600 }, ref.label));
+  }
+
+  // The meadow itself: stock area, green while alive, loam after collapse.
+  const groundY = CHART.y + CHART.h;
+  const points = frames.map((f, i) => [xAt(i, count), yAt(f.stock_after_regrowth, cap)]);
+  const areaPath = (from, to) => {
+    if (to <= from) return '';
+    let d = `M ${points[from][0]} ${groundY}`;
+    for (let i = from; i <= to; i++) d += ` L ${points[i][0]} ${points[i][1]}`;
+    d += ` L ${points[to][0]} ${groundY} Z`;
+    return d;
+  };
+  const split = state.replay.collapseTurn ?? count - 1;
+  const clip = el('clipPath', { id: 'past-clip' });
+  clip.appendChild(el('rect', { id: 'past-clip-rect', x: 0, y: 0, width: CHART.x, height: H }));
+  root.appendChild(clip);
+  const drawStory = (group, opacity) => {
+    group.appendChild(el('path', { d: areaPath(0, split), fill: 'url(#meadow-fill)', opacity, filter: 'url(#paper-grain)' }));
+    if (state.replay.collapseTurn !== null && split < count - 1) {
+      group.appendChild(el('path', { d: areaPath(split, count - 1), fill: 'url(#loam-fill)', opacity, filter: 'url(#paper-grain)' }));
+    }
+    group.appendChild(el('polyline', {
+      points: points.map((p) => p.join(',')).join(' '),
+      fill: 'none', stroke: '#2b2419', 'stroke-width': 2.2, 'stroke-linejoin': 'round',
+      opacity: Math.min(opacity + 0.08, 1),
+    }));
+  };
+  const drawMarks = (group) => {
+    // Aggregate demand bars along the ground: terracotta when demand outruns regrowth.
+    for (let i = 0; i < count; i++) {
+      const demand = frames[i].demands.reduce((a, b) => a + b, 0);
+      const sustainable = regrowthAt(frames[i].stock_before, config);
+      const hBar = Math.min(demand * 2.6, 68);
+      group.appendChild(el('rect', {
+        x: xAt(i, count) - 2.4, y: groundY + 6, width: 4.8, height: hBar,
+        fill: demand > sustainable + 0.001 ? '#b4552e' : '#4a7c46', opacity: 0.75, rx: 1.5,
+      }));
+      if ((frames[i].sanctions || []).length) {
+        const x = xAt(i, count);
+        group.appendChild(el('path', {
+          d: `M ${x} ${CHART.y - 12} l 5 8 l -4 0 l 5 8 l -12 -9 l 5 0 Z`,
+          fill: '#b4552e',
+        }));
+      }
+    }
+    // Collapse marker: the annotation is part of the story, so it reveals too.
+    if (state.replay.collapseTurn !== null) {
+      const x = xAt(state.replay.collapseTurn, count);
+      group.appendChild(el('line', { x1: x, y1: CHART.y - 4, x2: x, y2: groundY, stroke: '#b4552e', 'stroke-width': 1.6, 'stroke-dasharray': '3 4' }));
+      group.appendChild(el('text', {
+        x: Math.min(x + 6, CHART.x + CHART.w - 150), y: CHART.y + 16, fill: '#b4552e',
+        'font-family': 'var(--serif)', 'font-size': 14, 'font-style': 'italic',
+      }, `the meadow dies · turn ${state.replay.collapseTurn + 1}`));
+    }
+  };
+  const faint = el('g', { opacity: 0.16 });
+  drawStory(faint, 0.9);
+  drawMarks(faint);
+  root.appendChild(faint);
+  const past = el('g', { 'clip-path': 'url(#past-clip)' });
+  drawStory(past, 0.92);
+  drawMarks(past);
+  root.appendChild(past);
+
+  root.appendChild(el('text', {
+    x: CHART.x + CHART.w, y: groundY + 88, fill: '#6b5f4c', 'text-anchor': 'end',
+    'font-family': 'var(--sans)', 'font-size': 10.5, 'font-weight': 600,
+  }, 'demand each turn — terracotta bars outran regrowth'));
+
+  // Playhead + dynamic groups
+  root.appendChild(el('line', { id: 'playhead', x1: 0, y1: CHART.y - 8, x2: 0, y2: groundY + 4, stroke: '#2b2419', 'stroke-width': 1.6 }));
+  root.appendChild(el('circle', { id: 'playhead-dot', cx: 0, cy: 0, r: 4.5, fill: '#2b2419', stroke: '#f7f3e9', 'stroke-width': 1.5 }));
+  root.appendChild(el('g', { id: 'ticker' }));
+  root.appendChild(el('g', { id: 'overlay' }));
+}
+
+// --- per-turn rendering ---------------------------------------------------
+function renderTurn() {
+  const { frames, names, config } = state.replay;
+  const cap = config.stock_capacity ?? 100;
+  const count = frames.length;
+  const frame = frames[state.turn];
+
+  // Clock
+  document.getElementById('clock').textContent = `turn ${state.turn + 1} / ${count}`;
+  document.getElementById('clock-sub').textContent =
+    `stock ${frame.stock_after_regrowth.toFixed(1)}${frame.collapsed ? ' · dead' : ''}`;
+
+  // Playhead
+  const px = xAt(state.turn, count), py = yAt(frame.stock_after_regrowth, cap);
+  const playhead = document.getElementById('playhead');
+  playhead.setAttribute('x1', px); playhead.setAttribute('x2', px);
+  const dot = document.getElementById('playhead-dot');
+  dot.setAttribute('cx', px); dot.setAttribute('cy', py);
+  document.getElementById('past-clip-rect').setAttribute('width', px + 2);
+
+  // Scorebug: ranked chips
+  const bug = document.getElementById('scorebug');
+  bug.textContent = '';
+  const ranked = names.map((name, slot) => ({ name, slot, score: frame.scores[slot] }))
+    .sort((a, b) => b.score - a.score);
+  const chipW = Math.min(150, (W - CHART.x - 60) / ranked.length);
+  ranked.forEach((entry, rank) => {
+    const gx = CHART.x + rank * chipW;
+    const isLeader = rank === 0;
+    const highlighted = state.highlight === entry.slot;
+    const group = el('g', { transform: `translate(${gx} ${BAND_TOP - 30})`, style: 'cursor:pointer' });
+    group.addEventListener('click', () => {
+      state.highlight = state.highlight === entry.slot ? null : entry.slot;
+      renderTurn(); renderTranscript();
+    });
+    group.appendChild(el('rect', {
+      x: 0, y: -14, width: chipW - 8, height: 30, rx: 6,
+      fill: isLeader ? '#efe4c3' : highlighted ? '#e4ead8' : 'transparent',
+      stroke: highlighted ? '#4a7c46' : isLeader ? '#b8860b' : 'transparent', 'stroke-width': 1.2,
+    }));
+    group.appendChild(el('text', {
+      x: 6, y: -1, fill: '#6b5f4c', 'font-family': 'var(--mono)', 'font-size': 10,
+    }, `${rank + 1}`));
+    group.appendChild(el('text', {
+      x: 20, y: -1, fill: '#2b2419', 'font-family': 'var(--sans)', 'font-size': 11.5,
+      'font-weight': isLeader ? 700 : 500,
+    }, entry.name.length > 13 ? entry.name.slice(0, 12) + '…' : entry.name));
+    const margin = isLeader && ranked.length > 1 ? ` ▲${(entry.score - ranked[1].score).toFixed(1)}` : '';
+    group.appendChild(el('text', {
+      x: 6, y: 12, fill: isLeader ? '#b8860b' : '#6b5f4c', 'font-family': 'var(--mono)',
+      'font-size': 11, 'font-weight': 600,
+    }, entry.score.toFixed(1) + margin));
+    bug.appendChild(group);
+  });
+
+  // Ticker: the last few messages/sanctions up to the playhead
+  const ticker = document.getElementById('ticker');
+  ticker.textContent = '';
+  const lines = [];
+  for (let i = state.turn; i >= 0 && lines.length < 3; i--) {
+    for (const s of [...(frames[i].sanctions || [])].reverse()) {
+      if (lines.length < 3) lines.push({ turn: i, kind: 'sanction', text: `${names[s.by]} sanctions ${names[s.target]}` });
+    }
+    for (const m of [...(frames[i].messages || [])].reverse()) {
+      if (lines.length < 3) lines.push({ turn: i, kind: 'chat', slot: m.slot, text: m.text });
+    }
+  }
+  lines.reverse().forEach((entry, i) => {
+    const y = TICKER_Y + i * 26;
+    const label = entry.kind === 'sanction' ? '⚑' : names[entry.slot];
+    const group = el('g', {});
+    group.appendChild(el('text', {
+      x: CHART.x, y, fill: entry.kind === 'sanction' ? '#b4552e' : '#2b2419',
+      'font-family': 'var(--serif)', 'font-size': 14, 'font-weight': 700,
+    }, entry.kind === 'sanction' ? `t${entry.turn + 1} · sanction` : `t${entry.turn + 1} · ${label}`));
+    const body = entry.text.length > 110 ? entry.text.slice(0, 108) + '…' : entry.text;
+    group.appendChild(el('text', {
+      x: CHART.x + 190, y, fill: entry.kind === 'sanction' ? '#b4552e' : '#4b4335',
+      'font-family': 'var(--sans)', 'font-size': 13.5,
+    }, body));
+    ticker.appendChild(group);
+  });
+  if (lines.length === 0) {
+    ticker.appendChild(el('text', {
+      x: CHART.x, y: TICKER_Y, fill: '#6b5f4c', 'font-family': 'var(--serif)',
+      'font-size': 13.5, 'font-style': 'italic',
+    }, (state.replay.config.chat_enabled ?? true) ? 'the meadow is quiet…' : 'a silent meadow — chat is disabled in this variant'));
+  }
+
+  // Beat overlays
+  const overlay = document.getElementById('overlay');
+  overlay.textContent = '';
+  if (state.replay.collapseTurn === state.turn && state.overlayUntil > performance.now()) {
+    drawCurtain(overlay,
+      'THE MEADOW DIES',
+      `turn ${state.turn + 1} — ${frame.demands.reduce((a, b) => a + b, 0)} demanded of ${frame.stock_before.toFixed(1)} standing`);
+  } else if (state.turn === count - 1) {
+    drawEndCard(overlay);
+  }
+
+  // Controls
+  document.getElementById('scrubber').max = count - 1;
+  document.getElementById('scrubber').value = state.turn;
+  document.getElementById('turn-label').textContent = `t ${state.turn + 1}/${count}`;
+  markTranscriptProgress();
+}
+
+function drawCurtain(overlay, title, sub) {
+  overlay.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#2b2419', opacity: 0.55 }));
+  overlay.appendChild(el('text', {
+    x: W / 2, y: H / 2 - 12, fill: '#f7f3e9', 'text-anchor': 'middle',
+    'font-family': 'var(--serif)', 'font-size': 52, 'font-weight': 700, 'letter-spacing': '1.5',
+  }, title));
+  overlay.appendChild(el('text', {
+    x: W / 2, y: H / 2 + 30, fill: '#e7ddc6', 'text-anchor': 'middle',
+    'font-family': 'var(--sans)', 'font-size': 18,
+  }, sub));
+}
+
+function verdictSentence() {
+  const { names, results, collapseTurn, frames } = state.replay;
+  const last = frames[frames.length - 1];
+  const bestSlot = last.scores.indexOf(Math.max(...last.scores));
+  const winner = `${names[bestSlot]} tops the ledger with ${last.scores[bestSlot].toFixed(1)}`;
+  if (collapseTurn === null) {
+    return `The meadow survives at stock ${last.stock_after_regrowth.toFixed(1)} — ${winner}.`;
+  }
+  return `The meadow died on turn ${collapseTurn + 1} — ${winner}; group welfare ${Number(results.welfare).toFixed(1)}.`;
+}
+
+function drawEndCard(overlay) {
+  const { names, frames } = state.replay;
+  const last = frames[frames.length - 1];
+  overlay.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#2b2419', opacity: 0.62 }));
+  const cardW = 640, cardH = 420, cx = (W - cardW) / 2, cy = (H - cardH) / 2;
+  overlay.appendChild(el('rect', { x: cx, y: cy, width: cardW, height: cardH, rx: 12, fill: '#f7f3e9', stroke: '#b8860b', 'stroke-width': 2 }));
+  overlay.appendChild(el('text', {
+    x: W / 2, y: cy + 52, fill: '#6b5f4c', 'text-anchor': 'middle', 'font-family': 'var(--sans)',
+    'font-size': 11, 'font-weight': 700, 'letter-spacing': '2.4', style: 'text-transform:uppercase',
+  }, 'FINAL LEDGER'));
+  overlay.appendChild(el('text', {
+    x: W / 2, y: cy + 92, fill: '#2b2419', 'text-anchor': 'middle',
+    'font-family': 'var(--serif)', 'font-size': 22,
+  }, verdictSentence()));
+  const ranked = names.map((name, slot) => ({ name, score: last.scores[slot], slot }))
+    .sort((a, b) => b.score - a.score);
+  ranked.forEach((entry, rank) => {
+    const rowY = cy + 136 + rank * 33;
+    if (rank === 0) {
+      overlay.appendChild(el('rect', { x: cx + 40, y: rowY - 21, width: cardW - 80, height: 29, rx: 6, fill: '#efe4c3' }));
+    }
+    overlay.appendChild(el('text', { x: cx + 56, y: rowY, fill: '#6b5f4c', 'font-family': 'var(--mono)', 'font-size': 13 }, String(rank + 1)));
+    overlay.appendChild(el('text', { x: cx + 92, y: rowY, fill: '#2b2419', 'font-family': 'var(--sans)', 'font-size': 15, 'font-weight': rank === 0 ? 700 : 400 }, entry.name));
+    overlay.appendChild(el('text', { x: cx + cardW - 56, y: rowY, fill: '#2b2419', 'text-anchor': 'end', 'font-family': 'var(--mono)', 'font-size': 15 }, entry.score.toFixed(1)));
+  });
+}
+
+// --- transcript (HTML, below the stage) ----------------------------------
+function renderTranscript() {
+  const body = document.getElementById('transcript-body');
+  body.textContent = '';
+  const { frames, names } = state.replay;
+  frames.forEach((frame, i) => {
+    const hasContent = (frame.messages || []).length || (frame.sanctions || []).length;
+    const demand = frame.demands.reduce((a, b) => a + b, 0);
+    const rationed = demand > frame.stock_before + 0.001;
+    if (!hasContent && !rationed) return;
+    const block = document.createElement('div');
+    block.className = 'turn-block';
+    block.dataset.turn = i;
+    const mark = document.createElement('div');
+    mark.className = 'turn-mark';
+    mark.textContent = `— turn ${i + 1} · stock ${frame.stock_after_regrowth.toFixed(1)} · demand ${demand}`;
+    block.appendChild(mark);
+    if (rationed) {
+      const line = document.createElement('div');
+      line.className = 'rationed-line';
+      line.textContent = `over-demand: ${demand} asked of ${frame.stock_before.toFixed(1)} standing — harvests rationed pro-rata`;
+      block.appendChild(line);
+    }
+    for (const s of frame.sanctions || []) {
+      const line = document.createElement('div');
+      line.className = 'sanction-line';
+      line.textContent = `⚑ ${names[s.by]} sanctions ${names[s.target]}`;
+      block.appendChild(line);
+    }
+    for (const m of frame.messages || []) {
+      const line = document.createElement('div');
+      line.className = 'msg';
+      if (state.highlight !== null && m.slot !== state.highlight) line.style.opacity = 0.45;
+      const who = document.createElement('b');
+      who.textContent = names[m.slot];
+      line.appendChild(who);
+      line.appendChild(document.createTextNode(' — ' + m.text));
+      block.appendChild(line);
+    }
+    body.appendChild(block);
+  });
+  markTranscriptProgress();
+}
+
+function markTranscriptProgress() {
+  const body = document.getElementById('transcript-body');
+  let firstFuture = null;
+  for (const block of body.children) {
+    const isFuture = Number(block.dataset.turn) > state.turn;
+    block.classList.toggle('future', isFuture);
+    for (const child of block.children) child.classList.toggle('future', isFuture);
+    if (isFuture && !firstFuture) firstFuture = block;
+  }
+}
+
+// --- playback loop --------------------------------------------------------
+let lastAdvance = 0;
+function loop() {
+  // setInterval, not requestAnimationFrame: backgrounded/headless tabs throttle
+  // rAF to a crawl, and a replay should keep time wherever it plays.
+  const now = performance.now();
+  if (!state.replay || !state.playing) { lastAdvance = now; return; }
+  if (now < state.overlayUntil || now < state.endHoldUntil) return;
+  const dwell = Math.max(BASE_DWELL_MS / state.speed, MIN_DWELL_MS);
+  if (now - lastAdvance < dwell) return;
+  lastAdvance = now;
+  const count = state.replay.frames.length;
+  if (state.turn >= count - 1) {
+    state.turn = 0;
+  } else {
+    state.turn += 1;
+    if (state.turn === state.replay.collapseTurn) {
+      state.overlayUntil = now + Math.max(CURTAIN_MS / state.speed, 900);
+    }
+    if (state.turn === count - 1) {
+      state.endHoldUntil = now + END_HOLD_MS;
+    }
+  }
+  renderTurn();
+}
+
+function setPlayGlyph() {
+  const glyph = document.getElementById('play-glyph');
+  glyph.textContent = '';
+  if (state.playing) {
+    glyph.appendChild(el('rect', { x: 1, y: 1, width: 3.4, height: 12, fill: '#f7f3e9' }));
+    glyph.appendChild(el('rect', { x: 7.6, y: 1, width: 3.4, height: 12, fill: '#f7f3e9' }));
+  } else {
+    glyph.appendChild(el('path', { d: 'M 1.5 0.5 L 11.5 7 L 1.5 13.5 Z', fill: '#f7f3e9' }));
+  }
+  document.getElementById('play').setAttribute('aria-label', state.playing ? 'Pause' : 'Play');
+}
+
+// --- boot -----------------------------------------------------------------
+async function fetchReplayBytes(url) {
+  const response = await fetch(url, { mode: 'cors' });
+  if (!response.ok) throw new Error(`replay fetch failed: HTTP ${response.status}`);
+  let buffer = new Uint8Array(await response.arrayBuffer());
+  if (buffer[0] === 0x1f && buffer[1] === 0x8b) {
+    const stream = new Response(new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip')));
+    buffer = new Uint8Array(await stream.arrayBuffer());
+  }
+  return new TextDecoder().decode(buffer);
+}
+
+async function boot() {
+  setPlayGlyph();
+  document.getElementById('play').onclick = () => {
+    state.playing = !state.playing;
+    state.endHoldUntil = 0;
+    setPlayGlyph();
+  };
+  document.getElementById('speed').onchange = (event) => { state.speed = Number(event.target.value); };
+  document.getElementById('scrubber').oninput = (event) => {
+    state.playing = false;
+    setPlayGlyph();
+    state.turn = Number(event.target.value);
+    state.overlayUntil = 0;
+    state.endHoldUntil = 0;
+    renderTurn();
+  };
+
+  const replayUrl = new URLSearchParams(location.search).get('replay');
+  if (!replayUrl) return fail('No replay URL was provided. Open this page as index.html?replay=<url>.');
+  let raw;
+  try {
+    raw = JSON.parse(await fetchReplayBytes(replayUrl));
+  } catch (error) {
+    return fail(`Could not load or parse the replay: ${error.message || error}`);
+  }
+  const normalized = normalize(raw.type === 'replay' ? raw : raw);
+  if (!normalized) return fail('Unrecognized replay format: expected Meadow frames with per-turn demands.');
+  state.replay = normalized;
+  drawScene();
+  renderTurn();
+  renderTranscript();
+  setInterval(loop, 100);
+}
+
+boot();
+</script>
+</body>
+</html>

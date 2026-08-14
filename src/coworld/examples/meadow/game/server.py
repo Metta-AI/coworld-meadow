@@ -3,7 +3,9 @@
 Wraps the pure engine in the Coworld game-container contract (see
 `docs/roles/GAME.md`): config via `COGAME_CONFIG_URI`, results and replay
 written to runner URIs, `/healthz`, browser clients, and the `/player`,
-`/global`, `/admin`, `/replay` websocket routes.
+`/global`, and `/admin` websocket routes. Replay viewing is the static
+browser bundle declared in the manifest (`static-replay-viewer/`), not a
+container route.
 
 Unlike Paint Arena's fixed-rate ticks, Meadow advances on a round barrier: a
 round settles as soon as every connected player has submitted an action, or
@@ -36,7 +38,6 @@ from coworld.examples.meadow.game.engine import (
 )
 from coworld.examples.meadow.shared.artifact_io import (
     artifact_method,
-    load_replay_data,
     read_data,
     write_data,
 )
@@ -52,17 +53,9 @@ GAME_PORT = int(os.environ.get("COGAME_PORT", "8080"))
 # connected while the game was live.
 POST_GAME_LINGER_SECONDS = float(os.environ.get("COWORLD_MEADOW_POST_GAME_LINGER_SECONDS", "30"))
 
-REPLAY_MODE = "COGAME_LOAD_REPLAY_URI" in os.environ
-if REPLAY_MODE:
-    REPLAY_LOAD_URI = os.environ["COGAME_LOAD_REPLAY_URI"]
-    RAW_CONFIG: dict[str, Any] = {"tokens": ["replay", "replay"], "players": [{"name": "replay"}] * 2}
-    RESULTS_URI = ""
-    REPLAY_URI = ""
-else:
-    REPLAY_LOAD_URI = ""
-    RAW_CONFIG = json.loads(read_data(os.environ["COGAME_CONFIG_URI"]))
-    RESULTS_URI = os.environ["COGAME_RESULTS_URI"]
-    REPLAY_URI = os.environ["COGAME_SAVE_REPLAY_URI"]
+RAW_CONFIG: dict[str, Any] = json.loads(read_data(os.environ["COGAME_CONFIG_URI"]))
+RESULTS_URI = os.environ["COGAME_RESULTS_URI"]
+REPLAY_URI = os.environ["COGAME_SAVE_REPLAY_URI"]
 
 TOKENS: list[str] = RAW_CONFIG["tokens"]
 PLAYER_NAMES: list[str] = [player["name"] for player in RAW_CONFIG["players"]]
@@ -73,7 +66,7 @@ PLAYER_CONNECT_TIMEOUT_SECONDS = float(RAW_CONFIG.get("player_connect_timeout_se
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    timeout_task = asyncio.create_task(_start_after_player_connect_timeout()) if TOKENS and not REPLAY_MODE else None
+    timeout_task = asyncio.create_task(_start_after_player_connect_timeout()) if TOKENS else None
     yield
     if timeout_task is not None:
         timeout_task.cancel()
@@ -113,11 +106,6 @@ def global_client() -> HTMLResponse:
 @app.get("/client/admin")
 def admin_client() -> HTMLResponse:
     return HTMLResponse((CLIENT_DIR / "admin.html").read_text())
-
-
-@app.get("/client/replay")
-def replay_client() -> HTMLResponse:
-    return HTMLResponse((CLIENT_DIR / "replay.html").read_text())
 
 
 @app.get("/client/player")
@@ -166,14 +154,6 @@ async def admin(websocket: WebSocket) -> None:
         elif command["command"] == "round_seconds":
             session.round_seconds = float(command["round_seconds"])
         await websocket.send_json(_snapshot())
-
-
-@app.websocket("/replay")
-async def replay_viewer(websocket: WebSocket) -> None:
-    await websocket.accept()
-    await websocket.send_json({"type": "replay", **load_replay_data(REPLAY_LOAD_URI)})
-    async for command in websocket.iter_json():
-        await websocket.send_json({"type": "control", "command": command})
 
 
 @app.websocket("/player")
