@@ -141,7 +141,10 @@ Each turn you receive the current game state as JSON. Reply with ONLY one JSON o
 LLM_SANCTION_RULES = (
     "\n- You may also sanction one player per round: you pay {sanction_cost}, they lose {sanction_burn}."
 )
-LLM_THROTTLE_SLEEPS = (1.0, 2.0, 4.0)
+# Long enough to ride out sustained shared-quota throttling (see BEDROCK.md): a seat that
+# gives up too early records a pass, which poisons the episode as data. ~2 minutes of
+# retries before conceding the round.
+LLM_THROTTLE_SLEEPS = (1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 60.0)
 
 
 class LlmPolicy:
