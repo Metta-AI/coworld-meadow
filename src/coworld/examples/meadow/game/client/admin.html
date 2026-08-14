@@ -1,0 +1,71 @@
+<!doctype html>
+<title>Coworld Meadow Admin</title>
+<style>
+  body {
+    background: #eef2f7;
+    color: #172033;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    margin: 0;
+    padding: 28px;
+  }
+  h1 {
+    font-size: 28px;
+    margin: 0 0 12px;
+  }
+  #status {
+    background: #172033;
+    border-radius: 999px;
+    color: white;
+    display: inline-flex;
+    font-size: 13px;
+    font-weight: 800;
+    margin-bottom: 16px;
+    padding: 7px 12px;
+  }
+  button,
+  input {
+    border: 1px solid #c6d2e4;
+    border-radius: 8px;
+    font-size: 15px;
+    margin-right: 8px;
+    padding: 10px 16px;
+  }
+  button {
+    background: #172033;
+    border: 0;
+    color: white;
+    cursor: pointer;
+    font-weight: 800;
+  }
+</style>
+<h1>Meadow admin</h1>
+<div id="status">connecting…</div>
+<div>
+  <button id="pause">Pause</button>
+  <button id="resume">Resume</button>
+  <input id="round-seconds" type="number" step="0.5" min="0.5" style="width: 90px" />
+  <button id="set-round-seconds">Set round seconds</button>
+</div>
+<script>
+  const statusEl = document.getElementById('status')
+  const target = new URL(window.location.href)
+  target.pathname = '/admin'
+  target.search = ''
+  if (target.protocol === 'http:') target.protocol = 'ws:'
+  if (target.protocol === 'https:') target.protocol = 'wss:'
+  const socket = new WebSocket(target)
+  socket.onmessage = (event) => {
+    const state = JSON.parse(event.data)
+    statusEl.textContent =
+      `round ${state.round}/${state.rounds} · stock ${state.stock} · ` +
+      `${state.paused ? 'paused' : 'running'} · ${state.round_seconds}s rounds · ` +
+      `submitted ${state.submitted.length}/${state.connected.length}`
+    if (!document.getElementById('round-seconds').value) {
+      document.getElementById('round-seconds').value = state.round_seconds
+    }
+  }
+  document.getElementById('pause').onclick = () => socket.send(JSON.stringify({ command: 'pause' }))
+  document.getElementById('resume').onclick = () => socket.send(JSON.stringify({ command: 'resume' }))
+  document.getElementById('set-round-seconds').onclick = () =>
+    socket.send(JSON.stringify({ command: 'round_seconds', round_seconds: Number(document.getElementById('round-seconds').value) }))
+</script>

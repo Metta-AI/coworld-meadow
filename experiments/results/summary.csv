@@ -1,0 +1,41 @@
+experiment,condition,episodes,welfare_pct_optimum_mean,welfare_pct_optimum_stdev,survival_rate,median_collapse_round,synchrony_mean,sanctions_mean
+greedy_gradient,greedy=0,1,0.9447,,1.0,,1.0,0
+greedy_gradient,greedy=1,1,0.806,,1.0,,0.75,0
+greedy_gradient,greedy=2,1,0.2799,,0.0,17,0.571,0
+greedy_gradient,greedy=3,1,0.1917,,0.0,8,0.464,0
+greedy_gradient,greedy=4,1,0.16,,0.0,5,0.429,0
+greedy_gradient,greedy=5,1,0.1475,,0.0,4,0.464,0
+greedy_gradient,greedy=6,1,0.1369,,0.0,3,0.571,0
+greedy_gradient,greedy=7,1,0.1277,,0.0,2,0.75,0
+greedy_gradient,greedy=8,1,0.1259,,0.0,2,1.0,0
+institution_grid,"ledger=off,sanctions=off",1,0.16,,0.0,5,0.429,0
+institution_grid,"ledger=off,sanctions=on",1,0.16,,0.0,5,0.429,0
+institution_grid,"ledger=on,sanctions=off",1,0.16,,0.0,5,0.429,0
+institution_grid,"ledger=on,sanctions=on",1,-0.1362,,0.0,9,0.407,48
+police_force,enforcers=0,1,0.1259,,0.0,2,1.0,0
+police_force,enforcers=1,1,0.106,,0.0,3,0.713,4
+police_force,enforcers=2,1,0.0694,,0.0,3,0.534,10
+police_force,enforcers=3,1,0.0256,,0.0,4,0.437,18
+police_force,enforcers=4,1,-0.1362,,0.0,9,0.407,48
+police_force,enforcers=5,1,-0.7772,,1.0,,0.576,225
+police_force,enforcers=6,1,-0.441,,1.0,,0.789,186
+police_force,enforcers=7,1,0.2223,,1.0,,0.933,112
+police_force,enforcers=8,1,0.9447,,1.0,,1.0,0
+random_population,8xrandom,30,0.2215,0.0305,0.0,9.0,0.251,0
+reference,8xgreedy,1,0.1259,,0.0,2,1.0,0
+reference,8xsustainable,1,0.9447,,1.0,,1.0,0
+trigger_dynamics,greedy=0,1,0.9447,,1.0,,1.0,0
+trigger_dynamics,greedy=1,1,0.806,,1.0,,0.75,0
+trigger_dynamics,greedy=2,1,0.1389,,0.0,3,0.6,0
+trigger_dynamics,greedy=3,1,0.1374,,0.0,3,0.5,0
+trigger_dynamics,greedy=4,1,0.1357,,0.0,3,0.467,0
+trigger_dynamics,greedy=5,1,0.1288,,0.0,2,0.491,0
+trigger_dynamics,greedy=6,1,0.128,,0.0,2,0.593,0
+trigger_dynamics,greedy=7,1,0.127,,0.0,2,0.762,0
+trigger_dynamics,greedy=8,1,0.1259,,0.0,2,1.0,0
+llm,anonymous [haiku-4.5],10,0.8283,0.2703,0.8,6.0,0.978,0
+llm,institutions [haiku-4.5],10,0.9667,0.0,1.0,,1.0,0
+llm,mixed-models [haiku-4.5+sonnet-4.5],10,0.2865,0.0086,0.0,5.0,0.946,0
+llm,no-chat [haiku-4.5],10,0.4062,0.1728,0.0,4.0,0.831,0
+llm,open-meadow [haiku-4.5],10,0.2868,0.0065,0.0,5.0,0.976,0
+llm,open-meadow [sonnet-4.5],10,0.2773,0.0005,0.0,4.0,0.974,0

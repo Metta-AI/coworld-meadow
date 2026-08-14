@@ -1,0 +1,226 @@
+<!doctype html>
+<title>Coworld Meadow Global Client</title>
+<style>
+  :root {
+    --ink: #172033;
+    --muted: #637089;
+    --page: #eef2f7;
+    --panel: #ffffff;
+    --green: #059669;
+    --amber: #d97706;
+    --red: #dc2626;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background: radial-gradient(circle at top left, #ffffff 0, var(--page) 420px);
+    color: var(--ink);
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    margin: 0;
+    min-height: 100vh;
+    padding: 28px;
+  }
+  main {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: minmax(320px, 760px) minmax(240px, 340px);
+  }
+  h1 {
+    font-size: clamp(28px, 4vw, 44px);
+    line-height: 1;
+    margin: 0 0 6px;
+  }
+  .eyebrow {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  #status {
+    background: #172033;
+    border-radius: 999px;
+    color: white;
+    display: inline-flex;
+    font-size: 13px;
+    font-weight: 800;
+    margin: 8px 0 16px;
+    padding: 7px 12px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid #dbe2ee;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(23, 32, 51, 0.08);
+    margin-bottom: 16px;
+    padding: 14px 16px;
+  }
+  .panel h2 {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    margin: 0 0 10px;
+    text-transform: uppercase;
+  }
+  #stock-value {
+    font-size: 34px;
+    font-weight: 800;
+  }
+  #stock-value.dead {
+    color: var(--red);
+  }
+  svg {
+    display: block;
+    width: 100%;
+  }
+  table {
+    border-collapse: collapse;
+    font-size: 13px;
+    width: 100%;
+  }
+  th,
+  td {
+    border-bottom: 1px solid #eef1f7;
+    padding: 5px 6px;
+    text-align: right;
+  }
+  th:first-child,
+  td:first-child {
+    text-align: left;
+  }
+  th {
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  #chat {
+    font-size: 13px;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+  #chat div {
+    border-bottom: 1px solid #eef1f7;
+    padding: 4px 0;
+  }
+  #chat b {
+    color: var(--green);
+  }
+  .sanction {
+    color: var(--red);
+  }
+</style>
+<div class="eyebrow">Coworld · Meadow</div>
+<h1>The Meadow</h1>
+<div id="status">connecting…</div>
+<main>
+  <section>
+    <div class="panel">
+      <h2>Shared stock</h2>
+      <div id="stock-value">–</div>
+      <svg id="chart" viewBox="0 0 720 220" preserveAspectRatio="none"></svg>
+    </div>
+    <div class="panel">
+      <h2>Players</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Last harvest</th>
+            <th>Total</th>
+            <th>Score</th>
+            <th>Sanctions ±</th>
+          </tr>
+        </thead>
+        <tbody id="players"></tbody>
+      </table>
+    </div>
+  </section>
+  <aside>
+    <div class="panel">
+      <h2>Chat &amp; events</h2>
+      <div id="chat"></div>
+    </div>
+  </aside>
+</main>
+<script>
+  const statusEl = document.getElementById('status')
+  const stockEl = document.getElementById('stock-value')
+  const chartEl = document.getElementById('chart')
+  const playersEl = document.getElementById('players')
+  const chatEl = document.getElementById('chat')
+  const stockSeries = []
+  const seenRounds = new Set()
+
+  function chartPath(series, capacity, threshold) {
+    const width = 720
+    const height = 220
+    const pad = 8
+    const n = Math.max(series.length, 2)
+    const x = (index) => pad + (index * (width - 2 * pad)) / (n - 1)
+    const y = (value) => height - pad - (value / capacity) * (height - 2 * pad)
+    const points = series.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(' ')
+    return `
+      <line x1="${pad}" y1="${y(threshold)}" x2="${width - pad}" y2="${y(threshold)}"
+            stroke="#dc2626" stroke-dasharray="6 5" stroke-width="1.5"/>
+      <line x1="${pad}" y1="${y(capacity / 2)}" x2="${width - pad}" y2="${y(capacity / 2)}"
+            stroke="#059669" stroke-dasharray="2 6" stroke-width="1"/>
+      <polyline points="${points}" fill="none" stroke="#172033" stroke-width="2.5"/>`
+  }
+
+  function render(state) {
+    const phase = state.done
+      ? 'finished'
+      : state.paused
+        ? 'paused'
+        : state.started
+          ? state.collapsed
+            ? 'COLLAPSED'
+            : 'live'
+          : 'waiting for players'
+    statusEl.textContent = `round ${state.round}/${state.rounds} · ${phase} · stock ${state.stock}`
+    stockEl.textContent = state.stock
+    stockEl.className = state.collapsed ? 'dead' : ''
+
+    if (state.last_round && !seenRounds.has(state.last_round.round)) {
+      seenRounds.add(state.last_round.round)
+      stockSeries.push(state.last_round.stock_after_regrowth)
+      for (const message of state.last_round.messages) {
+        const line = document.createElement('div')
+        line.innerHTML = `<b>${state.player_names[message.slot]}</b> ${message.text.replace(/</g, '&lt;')}`
+        chatEl.prepend(line)
+      }
+      for (const sanction of state.last_round.sanctions) {
+        const line = document.createElement('div')
+        line.className = 'sanction'
+        line.textContent = `⚡ ${state.player_names[sanction.by]} sanctioned ${state.player_names[sanction.target]}`
+        chatEl.prepend(line)
+      }
+    }
+    if (stockSeries.length === 0) stockSeries.push(state.stock)
+    chartEl.innerHTML = chartPath(stockSeries, state.stock_capacity, state.collapse_threshold)
+
+    playersEl.innerHTML = state.player_names
+      .map((name, slot) => {
+        const last = state.last_round ? state.last_round.harvests[slot].toFixed(1) : '–'
+        const given = state.last_round ? state.last_round.sanctions.filter((s) => s.by === slot).length : 0
+        const received = state.last_round ? state.last_round.sanctions.filter((s) => s.target === slot).length : 0
+        return `<tr><td>${name}</td><td>${last}</td><td>${state.total_harvested[slot]}</td>
+                <td>${state.scores[slot]}</td><td>${given ? '+' + given : ''}${received ? ' −' + received : ''}</td></tr>`
+      })
+      .join('')
+  }
+
+  const target = new URL(window.location.href)
+  target.pathname = '/global'
+  target.search = ''
+  if (target.protocol === 'http:') target.protocol = 'ws:'
+  if (target.protocol === 'https:') target.protocol = 'wss:'
+  const socket = new WebSocket(target)
+  socket.onmessage = (event) => render(JSON.parse(event.data))
+  socket.onclose = () => {
+    statusEl.textContent += ' · disconnected'
+  }
+</script>

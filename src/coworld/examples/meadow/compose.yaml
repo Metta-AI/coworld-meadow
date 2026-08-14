@@ -1,0 +1,6 @@
+services:
+  meadow:
+    image: coworld-meadow:latest
+    platform: linux/amd64
+    build:
+      context: .

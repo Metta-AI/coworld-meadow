@@ -1,0 +1,293 @@
+<!doctype html>
+<title>Coworld Meadow Player Client</title>
+<style>
+  :root {
+    --ink: #172033;
+    --muted: #637089;
+    --page: #eef2f7;
+    --panel: #ffffff;
+    --green: #059669;
+    --red: #dc2626;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background: radial-gradient(circle at top left, #ffffff 0, var(--page) 420px);
+    color: var(--ink);
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    margin: 0;
+    min-height: 100vh;
+    padding: 28px;
+  }
+  main {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: minmax(320px, 640px) minmax(260px, 360px);
+  }
+  h1 {
+    font-size: clamp(28px, 4vw, 40px);
+    margin: 0 0 6px;
+  }
+  .eyebrow {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  #status {
+    background: #172033;
+    border-radius: 999px;
+    color: white;
+    display: inline-flex;
+    font-size: 13px;
+    font-weight: 800;
+    margin: 8px 0 16px;
+    padding: 7px 12px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid #dbe2ee;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(23, 32, 51, 0.08);
+    margin-bottom: 16px;
+    padding: 14px 16px;
+  }
+  .panel h2 {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    margin: 0 0 10px;
+    text-transform: uppercase;
+  }
+  #stock-value {
+    font-size: 34px;
+    font-weight: 800;
+  }
+  #stock-value.dead {
+    color: var(--red);
+  }
+  .harvest-buttons {
+    display: flex;
+    gap: 8px;
+    margin: 8px 0;
+  }
+  .harvest-buttons button {
+    background: #f1f5fb;
+    border: 2px solid #c6d2e4;
+    border-radius: 10px;
+    cursor: pointer;
+    flex: 1;
+    font-size: 20px;
+    font-weight: 800;
+    padding: 12px 0;
+  }
+  .harvest-buttons button.selected {
+    background: var(--green);
+    border-color: var(--green);
+    color: white;
+  }
+  select,
+  input[type='text'] {
+    border: 1px solid #c6d2e4;
+    border-radius: 8px;
+    font-size: 14px;
+    padding: 8px;
+    width: 100%;
+  }
+  #submit {
+    background: var(--ink);
+    border: 0;
+    border-radius: 10px;
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 800;
+    margin-top: 10px;
+    padding: 12px 0;
+    width: 100%;
+  }
+  #submit:disabled {
+    opacity: 0.4;
+  }
+  table {
+    border-collapse: collapse;
+    font-size: 13px;
+    width: 100%;
+  }
+  th,
+  td {
+    border-bottom: 1px solid #eef1f7;
+    padding: 4px 6px;
+    text-align: right;
+  }
+  th:first-child,
+  td:first-child {
+    text-align: left;
+  }
+  th {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+  #chat {
+    font-size: 13px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  #chat div {
+    border-bottom: 1px solid #eef1f7;
+    padding: 4px 0;
+  }
+  #norm {
+    background: #fef9ec;
+    border: 1px solid #f2e3b3;
+    border-radius: 8px;
+    color: #92610a;
+    font-size: 13px;
+    margin-top: 8px;
+    padding: 8px 10px;
+  }
+</style>
+<div class="eyebrow">Coworld · Meadow</div>
+<h1 id="title">Meadow player</h1>
+<div id="status">connecting…</div>
+<main>
+  <section>
+    <div class="panel">
+      <h2>Shared stock</h2>
+      <div id="stock-value">–</div>
+      <div id="stock-detail" style="color: var(--muted); font-size: 13px"></div>
+      <div id="norm" hidden></div>
+    </div>
+    <div class="panel">
+      <h2>Your action this round</h2>
+      <div class="harvest-buttons" id="harvest-buttons"></div>
+      <div id="sanction-row" hidden>
+        <label style="color: var(--muted); font-size: 12px">Sanction (you pay, they burn)</label>
+        <select id="sanction"></select>
+      </div>
+      <div id="message-row" hidden style="margin-top: 8px">
+        <input id="message" type="text" maxlength="140" placeholder="say something…" />
+      </div>
+      <button id="submit" disabled>Submit action</button>
+    </div>
+  </section>
+  <aside>
+    <div class="panel">
+      <h2>Ledger</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Last</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="ledger"></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>Chat</h2>
+      <div id="chat"></div>
+    </div>
+  </aside>
+</main>
+<script>
+  const statusEl = document.getElementById('status')
+  const stockEl = document.getElementById('stock-value')
+  const stockDetailEl = document.getElementById('stock-detail')
+  const normEl = document.getElementById('norm')
+  const buttonsEl = document.getElementById('harvest-buttons')
+  const sanctionRow = document.getElementById('sanction-row')
+  const sanctionEl = document.getElementById('sanction')
+  const messageRow = document.getElementById('message-row')
+  const messageEl = document.getElementById('message')
+  const submitEl = document.getElementById('submit')
+  const ledgerEl = document.getElementById('ledger')
+  const chatEl = document.getElementById('chat')
+  let observation = null
+  let harvest = 0
+
+  function buildButtons(maxHarvest) {
+    buttonsEl.innerHTML = ''
+    for (let value = 0; value <= maxHarvest; value += 1) {
+      const button = document.createElement('button')
+      button.textContent = value
+      button.onclick = () => {
+        harvest = value
+        for (const other of buttonsEl.children) other.classList.remove('selected')
+        button.classList.add('selected')
+      }
+      if (value === harvest) button.classList.add('selected')
+      buttonsEl.appendChild(button)
+    }
+  }
+
+  function render(obs) {
+    observation = obs
+    document.getElementById('title').textContent = `Meadow — slot ${obs.slot}`
+    const phase = obs.type === 'final' ? 'finished' : obs.collapsed ? 'COLLAPSED' : 'live'
+    statusEl.textContent = `round ${obs.round}/${obs.rounds} · ${phase} · your score ${obs.score}`
+    stockEl.textContent = obs.stock
+    stockEl.className = obs.collapsed ? 'dead' : ''
+    stockDetailEl.textContent =
+      `capacity ${obs.stock_capacity} · dies below ${obs.collapse_threshold}` +
+      (obs.last_round_total_harvest === null ? '' : ` · taken last round: ${obs.last_round_total_harvest}`)
+    normEl.hidden = !obs.norm_text
+    normEl.textContent = obs.norm_text
+    buildButtons(obs.max_harvest)
+
+    sanctionRow.hidden = !obs.sanctions_enabled
+    if (obs.sanctions_enabled) {
+      const names = obs.ledger ? obs.ledger.map((entry) => entry.name) : null
+      sanctionEl.innerHTML = '<option value="">no one</option>'
+      for (let slot = 0; slot < obs.num_players; slot += 1) {
+        if (slot === obs.slot) continue
+        sanctionEl.innerHTML += `<option value="${slot}">${names ? names[slot] : 'P' + slot}</option>`
+      }
+    }
+    messageRow.hidden = !obs.chat_enabled
+
+    ledgerEl.innerHTML = obs.ledger
+      ? obs.ledger
+          .map(
+            (entry) =>
+              `<tr><td>${entry.name}${entry.slot === obs.slot ? ' (you)' : ''}</td>
+               <td>${entry.recent_harvests.length ? entry.recent_harvests.at(-1) : '–'}</td>
+               <td>${entry.total_harvested}</td></tr>`
+          )
+          .join('')
+      : `<tr><td colspan="3" style="color:var(--muted)">harvests are anonymous in this meadow</td></tr>`
+
+    for (const message of obs.messages_last_round) {
+      const line = document.createElement('div')
+      line.textContent = `P${message.slot}: ${message.text}`
+      chatEl.prepend(line)
+    }
+    submitEl.disabled = obs.type === 'final'
+  }
+
+  const target = new URL(window.location.href)
+  target.pathname = '/player'
+  if (target.protocol === 'http:') target.protocol = 'ws:'
+  if (target.protocol === 'https:') target.protocol = 'wss:'
+  const socket = new WebSocket(target)
+  socket.onmessage = (event) => render(JSON.parse(event.data))
+  socket.onclose = () => {
+    statusEl.textContent += ' · disconnected'
+    submitEl.disabled = true
+  }
+  submitEl.onclick = () => {
+    if (!observation || socket.readyState !== WebSocket.OPEN) return
+    const action = { harvest }
+    if (observation.sanctions_enabled && sanctionEl.value !== '') action.sanction = Number(sanctionEl.value)
+    if (observation.chat_enabled && messageEl.value.trim()) action.message = messageEl.value.trim()
+    socket.send(JSON.stringify(action))
+    messageEl.value = ''
+    submitEl.textContent = `Submitted ${action.harvest} — waiting for round to settle…`
+    setTimeout(() => (submitEl.textContent = 'Submit action'), 1500)
+  }
+</script>

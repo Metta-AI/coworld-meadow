@@ -1,0 +1,369 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/main/src/coworld/coworld_manifest_schema.json",
+  "tags": ["social", "commons", "simultaneous", "multiplayer", "llm"],
+  "game": {
+    "name": "meadow",
+    "description": "Round-based commons game: N players share one regenerating stock that dies permanently if over-harvested. Institutional dials (public ledger, costly sanctions, posted norms, chat) are config, so one game runs the social-pressure treatment grid.",
+    "owner": "coworld@softmax.com",
+    "runnable": {
+      "type": "game",
+      "image": "{{MEADOW_IMAGE}}",
+      "run": ["python", "-m", "coworld.examples.meadow.game.server"],
+      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/game"
+    },
+    "config_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tokens", "players", "rounds"],
+      "properties": {
+        "tokens": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 12,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "players": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "round_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 120,
+          "default": 20
+        },
+        "stock_start": {
+          "type": "number",
+          "minimum": 0,
+          "default": 60
+        },
+        "stock_capacity": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 100
+        },
+        "regrowth_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.35
+        },
+        "collapse_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "default": 10
+        },
+        "max_harvest": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3
+        },
+        "ledger_public": {
+          "type": "boolean",
+          "default": true
+        },
+        "sanctions_enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "sanction_cost": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1
+        },
+        "sanction_burn": {
+          "type": "number",
+          "minimum": 0,
+          "default": 3
+        },
+        "chat_enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "chat_max_chars": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 140
+        },
+        "norm_text": {
+          "type": "string",
+          "default": ""
+        },
+        "player_connect_timeout_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "default": 180
+        }
+      }
+    },
+    "results_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scores", "total_harvested", "welfare", "final_stock", "collapse_round", "rounds"],
+      "properties": {
+        "scores": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 12,
+          "items": {
+            "type": "number"
+          }
+        },
+        "total_harvested": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 12,
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "welfare": {
+          "type": "number"
+        },
+        "final_stock": {
+          "type": "number",
+          "minimum": 0
+        },
+        "collapse_round": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "rounds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "protocols": {
+      "player": {
+        "type": "uri",
+        "value": "https://github.com/Metta-AI/coworld/blob/main/src/coworld/examples/meadow/game/docs/player_protocol_spec.md"
+      },
+      "global": {
+        "type": "uri",
+        "value": "https://github.com/Metta-AI/coworld/blob/main/src/coworld/examples/meadow/game/docs/global_protocol_spec.md"
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "uri",
+        "value": "https://github.com/Metta-AI/coworld/blob/main/src/coworld/examples/meadow/README.md"
+      },
+      "pages": [
+        {
+          "id": "rules.md",
+          "title": "rules.md",
+          "content": {
+            "type": "text",
+            "value": "# Meadow Rules\n\nN players share one stock that regrows logistically each round unless it ever drops below the collapse threshold — then it is dead forever. Each round every player simultaneously harvests 0..max_harvest; over-demand splits the remainder pro-rata. Your score is everything you harvest, minus sanction costs you pay and burns you receive. The sustainable aggregate is about regrowth_rate * capacity / 4 per round — under defaults, roughly one unit per player. Institutional dials (public ledger, sanctions, posted norm text, chat) vary by league variant."
+          }
+        }
+      ]
+    }
+  },
+  "player": [
+    {
+      "id": "sustainable",
+      "name": "Sustainable Harvester",
+      "type": "player",
+      "image": "{{MEADOW_IMAGE}}",
+      "run": ["python", "-m", "coworld.examples.meadow.player.player", "sustainable"],
+      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "description": "Harvests one unit per round while the stock is healthy, rests otherwise."
+    },
+    {
+      "id": "greedy",
+      "name": "Greedy Harvester",
+      "type": "player",
+      "image": "{{MEADOW_IMAGE}}",
+      "run": ["python", "-m", "coworld.examples.meadow.player.player", "greedy"],
+      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "description": "Always takes the maximum. The tragedy, distilled."
+    },
+    {
+      "id": "reciprocator",
+      "name": "Reciprocator",
+      "type": "player",
+      "image": "{{MEADOW_IMAGE}}",
+      "run": ["python", "-m", "coworld.examples.meadow.player.player", "reciprocator"],
+      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "description": "Sustainable until the aggregate shows over-harvesting, then triggers to max for a round."
+    },
+    {
+      "id": "deterrable",
+      "name": "Deterrable Greedy",
+      "type": "player",
+      "image": "{{MEADOW_IMAGE}}",
+      "run": ["python", "-m", "coworld.examples.meadow.player.player", "deterrable"],
+      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "description": "Greedy, but each sanction received buys five contrite quota rounds."
+    },
+    {
+      "id": "enforcer",
+      "name": "Enforcer",
+      "type": "player",
+      "image": "{{MEADOW_IMAGE}}",
+      "run": ["python", "-m", "coworld.examples.meadow.player.player", "enforcer"],
+      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "description": "Sustainable harvester that pays to sanction the worst over-harvester on the public ledger."
+    },
+    {
+      "id": "random",
+      "name": "Random Harvester",
+      "type": "player",
+      "image": "{{MEADOW_IMAGE}}",
+      "run": ["python", "-m", "coworld.examples.meadow.player.player", "random"],
+      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "description": "Uniform random harvests; the maximum-variance control."
+    },
+    {
+      "id": "llm",
+      "name": "LLM Harvester",
+      "type": "player",
+      "image": "{{MEADOW_IMAGE}}",
+      "run": ["python", "-m", "coworld.examples.meadow.player.player", "llm"],
+      "env": { "AWS_REGION": "us-east-1", "AWS_DEFAULT_REGION": "us-east-1" },
+      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "description": "Claude-driven seat via the Bedrock sidecar (InvokeModel). COWORLD_MEADOW_MODEL picks the model; COWORLD_MEADOW_PROMPT injects standing orders. The env region is the local-run default; the hosted runner overrides it with the sidecar's region."
+    }
+  ],
+  "grader": [
+    {
+      "id": "meadow-grader",
+      "type": "grader",
+      "name": "Meadow Social Planner Grader",
+      "description": "Scores an episode as group welfare divided by the exact DP planner optimum; reports survival, collapse round, synchrony (conformity), and harvest Gini.",
+      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/grader",
+      "image": "{{MEADOW_IMAGE}}",
+      "run": ["python", "-m", "coworld.examples.meadow.grader.meadow_grader"]
+    }
+  ],
+  "variants": [
+    {
+      "id": "default",
+      "name": "Open Meadow",
+      "game_config": {
+        "rounds": 60,
+        "round_seconds": 20,
+        "ledger_public": true,
+        "sanctions_enabled": false,
+        "chat_enabled": true,
+        "player_connect_timeout_seconds": 180,
+        "players": [
+          { "name": "P0" },
+          { "name": "P1" },
+          { "name": "P2" },
+          { "name": "P3" },
+          { "name": "P4" },
+          { "name": "P5" },
+          { "name": "P6" },
+          { "name": "P7" }
+        ]
+      },
+      "description": "Eight seats, public ledger, chat, no sanctions. The baseline social-pressure treatment."
+    },
+    {
+      "id": "anonymous",
+      "name": "Anonymous Meadow",
+      "game_config": {
+        "rounds": 60,
+        "round_seconds": 20,
+        "ledger_public": false,
+        "sanctions_enabled": false,
+        "chat_enabled": true,
+        "player_connect_timeout_seconds": 180,
+        "players": [
+          { "name": "P0" },
+          { "name": "P1" },
+          { "name": "P2" },
+          { "name": "P3" },
+          { "name": "P4" },
+          { "name": "P5" },
+          { "name": "P6" },
+          { "name": "P7" }
+        ]
+      },
+      "description": "Harvests are anonymous: only the aggregate is visible. The no-reputation control."
+    },
+    {
+      "id": "institutions",
+      "name": "Meadow With Institutions",
+      "game_config": {
+        "rounds": 60,
+        "round_seconds": 20,
+        "ledger_public": true,
+        "sanctions_enabled": true,
+        "chat_enabled": true,
+        "norm_text": "Posted quota: 1 per player per round keeps the meadow alive.",
+        "player_connect_timeout_seconds": 180,
+        "players": [
+          { "name": "P0" },
+          { "name": "P1" },
+          { "name": "P2" },
+          { "name": "P3" },
+          { "name": "P4" },
+          { "name": "P5" },
+          { "name": "P6" },
+          { "name": "P7" }
+        ]
+      },
+      "description": "Full Ostrom kit: public ledger, costly sanctions, and a posted quota norm."
+    }
+  ],
+  "certification": {
+    "game_config": {
+      "rounds": 20,
+      "round_seconds": 2,
+      "ledger_public": true,
+      "sanctions_enabled": true,
+      "chat_enabled": true,
+      "norm_text": "Posted quota: 1 per player per round keeps the meadow alive.",
+      "player_connect_timeout_seconds": 180,
+      "players": [
+        { "name": "Sustainable 1" },
+        { "name": "Sustainable 2" },
+        { "name": "Reciprocator" },
+        { "name": "Enforcer" },
+        { "name": "Deterrable" },
+        { "name": "Greedy" },
+        { "name": "Random" },
+        { "name": "Claude" }
+      ]
+    },
+    "players": [
+      { "player_id": "sustainable" },
+      { "player_id": "sustainable" },
+      { "player_id": "reciprocator" },
+      { "player_id": "enforcer" },
+      { "player_id": "deterrable" },
+      { "player_id": "greedy" },
+      { "player_id": "random" },
+      { "player_id": "llm" }
+    ]
+  }
+}
