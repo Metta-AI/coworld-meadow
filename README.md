@@ -29,6 +29,9 @@ and a mixed haiku+sonnet population inherits the *most confident* seat's error, 
 - `experiments/` — the sweep drivers (`run_scripted_experiments.py`, `run_llm_experiments.py`), analysis
   (`analyze.py`), findings (`RESULTS.md`), and all collected data (`results/`).
 - `tests/` — engine and protocol tests.
+- `meadow-rs/` — zero-dependency Rust port of the simulation core (engine, scripted
+  policies, planner DP), byte-identical to the Python scripted results and ~50x faster;
+  see [meadow-rs/README.md](meadow-rs/README.md).
 - `docs/blog-post.md` — the long-form write-up.
 
 ## Run it
