@@ -9,7 +9,7 @@
       "type": "game",
       "image": "{{MEADOW_IMAGE}}",
       "run": ["python", "-m", "coworld.examples.meadow.game.server"],
-      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/game"
+      "source_url": "https://github.com/Metta-AI/coworld-meadow/tree/main/src/coworld/examples/meadow/game"
     },
     "config_schema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -162,17 +162,17 @@
     "protocols": {
       "player": {
         "type": "uri",
-        "value": "https://github.com/Metta-AI/coworld/blob/main/src/coworld/examples/meadow/game/docs/player_protocol_spec.md"
+        "value": "https://github.com/Metta-AI/coworld-meadow/blob/main/src/coworld/examples/meadow/game/docs/player_protocol_spec.md"
       },
       "global": {
         "type": "uri",
-        "value": "https://github.com/Metta-AI/coworld/blob/main/src/coworld/examples/meadow/game/docs/global_protocol_spec.md"
+        "value": "https://github.com/Metta-AI/coworld-meadow/blob/main/src/coworld/examples/meadow/game/docs/global_protocol_spec.md"
       }
     },
     "docs": {
       "readme": {
         "type": "uri",
-        "value": "https://github.com/Metta-AI/coworld/blob/main/src/coworld/examples/meadow/README.md"
+        "value": "https://github.com/Metta-AI/coworld-meadow/blob/main/src/coworld/examples/meadow/README.md"
       },
       "pages": [
         {
@@ -193,7 +193,7 @@
       "type": "player",
       "image": "{{MEADOW_IMAGE}}",
       "run": ["python", "-m", "coworld.examples.meadow.player.player", "sustainable"],
-      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "source_url": "https://github.com/Metta-AI/coworld-meadow/tree/main/src/coworld/examples/meadow/player",
       "description": "Harvests one unit per round while the stock is healthy, rests otherwise."
     },
     {
@@ -202,7 +202,7 @@
       "type": "player",
       "image": "{{MEADOW_IMAGE}}",
       "run": ["python", "-m", "coworld.examples.meadow.player.player", "greedy"],
-      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "source_url": "https://github.com/Metta-AI/coworld-meadow/tree/main/src/coworld/examples/meadow/player",
       "description": "Always takes the maximum. The tragedy, distilled."
     },
     {
@@ -211,7 +211,7 @@
       "type": "player",
       "image": "{{MEADOW_IMAGE}}",
       "run": ["python", "-m", "coworld.examples.meadow.player.player", "reciprocator"],
-      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "source_url": "https://github.com/Metta-AI/coworld-meadow/tree/main/src/coworld/examples/meadow/player",
       "description": "Sustainable until the aggregate shows over-harvesting, then triggers to max for a round."
     },
     {
@@ -220,7 +220,7 @@
       "type": "player",
       "image": "{{MEADOW_IMAGE}}",
       "run": ["python", "-m", "coworld.examples.meadow.player.player", "deterrable"],
-      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "source_url": "https://github.com/Metta-AI/coworld-meadow/tree/main/src/coworld/examples/meadow/player",
       "description": "Greedy, but each sanction received buys five contrite quota rounds."
     },
     {
@@ -229,7 +229,7 @@
       "type": "player",
       "image": "{{MEADOW_IMAGE}}",
       "run": ["python", "-m", "coworld.examples.meadow.player.player", "enforcer"],
-      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "source_url": "https://github.com/Metta-AI/coworld-meadow/tree/main/src/coworld/examples/meadow/player",
       "description": "Sustainable harvester that pays to sanction the worst over-harvester on the public ledger."
     },
     {
@@ -238,7 +238,7 @@
       "type": "player",
       "image": "{{MEADOW_IMAGE}}",
       "run": ["python", "-m", "coworld.examples.meadow.player.player", "random"],
-      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "source_url": "https://github.com/Metta-AI/coworld-meadow/tree/main/src/coworld/examples/meadow/player",
       "description": "Uniform random harvests; the maximum-variance control."
     },
     {
@@ -248,7 +248,7 @@
       "image": "{{MEADOW_IMAGE}}",
       "run": ["python", "-m", "coworld.examples.meadow.player.player", "llm"],
       "env": { "AWS_REGION": "us-east-1", "AWS_DEFAULT_REGION": "us-east-1" },
-      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/player",
+      "source_url": "https://github.com/Metta-AI/coworld-meadow/tree/main/src/coworld/examples/meadow/player",
       "description": "Claude-driven seat via the Bedrock sidecar (InvokeModel). COWORLD_MEADOW_MODEL picks the model; COWORLD_MEADOW_PROMPT injects standing orders. The env region is the local-run default; the hosted runner overrides it with the sidecar's region."
     }
   ],
@@ -258,7 +258,7 @@
       "type": "grader",
       "name": "Meadow Social Planner Grader",
       "description": "Scores an episode as group welfare divided by the exact DP planner optimum; reports survival, collapse round, synchrony (conformity), and harvest Gini.",
-      "source_url": "https://github.com/Metta-AI/coworld/tree/main/src/coworld/examples/meadow/grader",
+      "source_url": "https://github.com/Metta-AI/coworld-meadow/tree/main/src/coworld/examples/meadow/grader",
       "image": "{{MEADOW_IMAGE}}",
       "run": ["python", "-m", "coworld.examples.meadow.grader.meadow_grader"]
     }
@@ -333,6 +333,29 @@
         ]
       },
       "description": "Full Ostrom kit: public ledger, costly sanctions, and a posted quota norm."
+    },
+    {
+      "id": "no-chat",
+      "name": "Silent Meadow",
+      "game_config": {
+        "rounds": 60,
+        "round_seconds": 20,
+        "ledger_public": true,
+        "sanctions_enabled": false,
+        "chat_enabled": false,
+        "player_connect_timeout_seconds": 180,
+        "players": [
+          { "name": "P0" },
+          { "name": "P1" },
+          { "name": "P2" },
+          { "name": "P3" },
+          { "name": "P4" },
+          { "name": "P5" },
+          { "name": "P6" },
+          { "name": "P7" }
+        ]
+      },
+      "description": "Public ledger but no communication: watch each other in silence. The chat-ablation control."
     }
   ],
   "certification": {
