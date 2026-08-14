@@ -173,7 +173,7 @@ def figure_institution_grid(rows: list[dict]) -> None:
 
 
 def short_model(model_id: str) -> str:
-    for marker in ("haiku", "sonnet", "opus"):
+    for marker in ("haiku", "sonnet", "opus", "fable", "mythos"):
         if marker in model_id:
             tail = model_id.split(marker, 1)[1]
             version = tail.split("-2", 1)[0].strip("-").replace("-", ".")

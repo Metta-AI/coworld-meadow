@@ -33,9 +33,18 @@ trigger_dynamics,greedy=5,1,0.1288,,0.0,2,0.491,0
 trigger_dynamics,greedy=6,1,0.128,,0.0,2,0.593,0
 trigger_dynamics,greedy=7,1,0.127,,0.0,2,0.762,0
 trigger_dynamics,greedy=8,1,0.1259,,0.0,2,1.0,0
+llm,anonymous [fable-5],5,0.4574,0.0352,0.0,15,0.87,0
 llm,anonymous [haiku-4.5],10,0.8283,0.2703,0.8,6.0,0.978,0
+llm,anonymous [opus-5],5,0.7962,0.0723,0.0,23,0.943,0
+llm,anonymous [sonnet-5],5,0.7157,0.1044,0.2,28.5,0.946,0
+llm,institutions [fable-5],5,0.8926,0.0246,0.0,28,0.962,0.2
 llm,institutions [haiku-4.5],10,0.9667,0.0,1.0,,1.0,0
+llm,institutions [opus-5],5,0.544,0.1141,0.0,21,0.917,6.8
+llm,institutions [sonnet-5],5,0.9686,0.0001,1.0,,0.983,0
 llm,mixed-models [haiku-4.5+sonnet-4.5],10,0.2865,0.0086,0.0,5.0,0.946,0
 llm,no-chat [haiku-4.5],10,0.4062,0.1728,0.0,4.0,0.831,0
+llm,open-meadow [fable-5],5,0.7084,0.0513,0.0,22,0.898,0
 llm,open-meadow [haiku-4.5],10,0.2868,0.0065,0.0,5.0,0.976,0
+llm,open-meadow [opus-5],5,0.7352,0.054,0.0,26,0.901,0
 llm,open-meadow [sonnet-4.5],10,0.2773,0.0005,0.0,4.0,0.974,0
+llm,open-meadow [sonnet-5],5,0.8999,0.0189,1.0,,0.951,0

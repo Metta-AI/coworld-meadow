@@ -220,16 +220,28 @@ class LlmPolicy:
 
     def _complete(self, user_text: str) -> str | None:
         self.llm_calls += 1
+        # Pre-4.6 models (haiku 4.5, sonnet 4.5) narrate their analysis and never reach the JSON
+        # unless an assistant prefill forces the reply to be the JSON object itself. 4.6+ models
+        # reject prefill outright, emit clean JSON unprompted, and think before the text block —
+        # so they need max_tokens headroom for the thinking spend instead.
+        prefill = any(marker in self.model for marker in ("haiku-4-5", "sonnet-4-5"))
+        messages = [{"role": "user", "content": user_text}]
+        if prefill:
+            messages.append({"role": "assistant", "content": "{"})
         body = {
             "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 200,
+            "max_tokens": 200 if prefill else 4000,
             "system": self._system_prompt,
-            # The assistant prefill forces the reply to be the JSON object itself; without it the
-            # model spends the token budget narrating its analysis and never reaches the JSON.
-            "messages": [{"role": "user", "content": user_text}, {"role": "assistant", "content": "{"}],
+            "messages": messages,
         }
+        if not prefill:
+            # Thinking shares the max_tokens budget on 4.6+ models; low effort keeps a
+            # one-integer harvest decision from burning the budget before the text block.
+            body["output_config"] = {"effort": "low"}
         completion = self._complete_bedrock(body) if self.backend == "bedrock" else self._complete_anthropic(body)
-        return None if completion is None else "{" + completion
+        if completion is None:
+            return None
+        return "{" + completion if prefill else completion
 
     def _complete_bedrock(self, body: dict) -> str | None:
         import botocore.exceptions  # noqa: PLC0415  # boto3 ships in the player image, not the coworld package
@@ -241,7 +253,8 @@ class LlmPolicy:
         for sleep_seconds in (*LLM_THROTTLE_SLEEPS, None):
             try:
                 response = self._bedrock_client.invoke_model(modelId=self.model, body=json.dumps(body))
-                return json.loads(response["body"].read())["content"][0]["text"]
+                content = json.loads(response["body"].read())["content"]
+                return next((block["text"] for block in content if block["type"] == "text"), "")
             except botocore.exceptions.ClientError as error:
                 code = error.response.get("Error", {}).get("Code", "")
                 if code not in ("ThrottlingException", "ServiceUnavailableException", "ModelTimeoutException"):
@@ -273,7 +286,8 @@ class LlmPolicy:
         for sleep_seconds in (*LLM_THROTTLE_SLEEPS, None):
             try:
                 with urlopen(request, timeout=60) as response:
-                    return json.load(response)["content"][0]["text"]
+                    content = json.load(response)["content"]
+                    return next((block["text"] for block in content if block["type"] == "text"), "")
             except HTTPError as error:
                 if error.code not in (429, 529):
                     raise
