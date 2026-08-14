@@ -46,6 +46,11 @@ CLIENT_DIR = Path(__file__).parent / "client"
 logger = get_logger("meadow.game")
 GAME_HOST = os.environ.get("COGAME_HOST", "0.0.0.0")
 GAME_PORT = int(os.environ.get("COGAME_PORT", "8080"))
+# Keep serving after the final round so viewers (and the hosted certifier's
+# websocket probes) can still read the final state: an all-scripted episode can
+# finish in under a second, and exiting immediately races anything that
+# connected while the game was live.
+POST_GAME_LINGER_SECONDS = float(os.environ.get("COWORLD_MEADOW_POST_GAME_LINGER_SECONDS", "30"))
 
 REPLAY_MODE = "COGAME_LOAD_REPLAY_URI" in os.environ
 if REPLAY_MODE:
@@ -139,6 +144,9 @@ async def _send_global_snapshots(websocket: WebSocket) -> None:
         await asyncio.sleep(0.5)
         await websocket.send_json(_snapshot())
     await websocket.send_json(_snapshot())
+    # Hold the connection through the post-game linger so probes that attached
+    # while the game was live can still ping and read the final state.
+    await asyncio.sleep(POST_GAME_LINGER_SECONDS)
 
 
 async def _drain_messages(websocket: WebSocket) -> None:
@@ -238,9 +246,10 @@ async def _play_game() -> None:
     )
 
     session.done = True
-    server.should_exit = True
     for slot, websocket in session.players.items():
         await websocket.send_json({**_player_observation(slot), "type": "final", "done": True})
+    await asyncio.sleep(POST_GAME_LINGER_SECONDS)
+    server.should_exit = True
     await asyncio.sleep(0.5)
 
 
