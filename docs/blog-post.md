@@ -166,6 +166,9 @@ sweep's lowest at 0.83, and outcomes are bimodal — some die in round 4, some l
 is doing real coordination work: it compresses the society onto a single trajectory. Whether that trajectory lives or
 dies is decided by the anchor. Talk is an amplifier with no opinion about what it amplifies.
 
+(A caveat that becomes a finding: "transparency backfires" is a claim about *this capability tier*. The interim
+replication below finds the effect reverses sign for the newest Sonnet — see the crossover section.)
+
 ## Institutions work — but not for the textbook reason
 
 The full institutional kit — ledger, sanctions, and the posted quota — is a step change: ten out of ten societies
@@ -233,14 +236,74 @@ This is, we think, the sweep's sharpest lesson for multiagent system design. The
 chat channel destroys it in one round regardless of how many model families are present. Random seats (scripted
 Finding 5) showed variance without correctness fails; mixed seats show correctness without independence fails too.
 
+One caveat on the capability claim, though, and it turns out to be a big one. "Capability buys eloquence, not
+correctness" was measured across the haiku-4.5 → sonnet-4.5 gap. We are currently running a much larger replication
+that adds the newer model generation, and the interim data — reported next, with appropriate caution — says the
+claim does not survive the next capability step.
+
+## Interim report: 25× the data, and a capability crossover
+
+*This section reports a sweep still in progress (1,317 of ~1,700 episodes at time of writing; the cells below are
+each complete unless marked). We are publishing the interim table because two results already exceed any plausible
+stopping-rule threshold, but transcript-level analysis of the new cells is still under way, and the two largest
+models (opus-5, fable-5) have not started — the sweep runs cheapest models first, so nothing below speaks to them
+yet.*
+
+The replication scales the four institutional conditions from 10 episodes to 250 (haiku-4.5) and 100 (sonnet-5 —
+note: the *new* Sonnet, not the 4.5 that ran in the original sweep), with fresh seeds, the same prompt template,
+and the same one-call-per-seat-per-round protocol. 317,520 model calls so far; 85 transient failures (0.027%), every
+one retried to completion; still **zero sanctions fired in the entire dataset**.
+
+| condition | haiku-4.5 (n=250 each) | sonnet-5 (n=100 each) |
+| --- | --- | --- |
+| open-meadow | 28.6 ± 0.7% · **0/250 survive** | 77.8 ± 21.8% · **80/100 survive** |
+| anonymous | 90.7 ± 17.8% · 221/250 survive | 66.8 ± 6.5% · **1/100 survives** |
+| no-chat | 41.6 ± 16.1% · 0/250 survive | 78.7 ± 9.8% · 10/23 survive *(in progress)* |
+| institutions | 96.7 ± 0.0% · 250/250 survive | 96.9 ± 0.0% · 100/100 survive |
+
+*Welfare as % of computed optimum, mean ± sd; survival = stock alive at round 30.*
+
+Three things stand out.
+
+**The original findings replicate, almost embarrassingly precisely.** Haiku open-meadow at n=250 lands at
+28.6 ± 0.7% of optimum against the pilot's 28.7 ± 0.7%, still with zero survivors; anonymous still rescues it
+(88% survival); institutions are still a zero-variance fixed point (250/250 surviving at exactly the quota-compliant
+welfare, no two episodes distinguishable). Whatever else is true of these societies, they are *reproducible* —
+condition means moved by less than a percentage point when the sample grew 25×.
+
+**Sonnet-5 breaks the doom loop.** Where sonnet-4.5 collapsed 10/10 open meadows with better prose than haiku,
+sonnet-5 survives 80/100 at 77.8% of optimum. The failure we called "confident, synchronized consensus on a wrong
+answer" is not a fixed property of LLM societies; at some capability threshold between the Sonnet generations, the
+group starts getting the round-1 number right often enough to live. The section above — "capability buys eloquence,
+not correctness" — is now a claim about a capability *range*, not about capability as such.
+
+**But the institutions cross over.** Here is the result we did not anticipate: the conditions that help one
+capability tier *hurt* the other, symmetrically. Anonymity — haiku's rescue — is sonnet-5's worst condition:
+1 survivor in 100 episodes. And the attributed ledger — haiku's poison — is what sonnet-5's 80% survival rests on.
+The collapse geometry hints at the mechanism: haiku's anonymous failures die early (median round 8, the familiar
+anchoring death), while sonnet-5's anonymous societies run the commons competently for most of the game and then
+die at median round 26 of 30 — a *late* collapse, consistent with seats liquidating the stock as the horizon
+approaches once no name is attached to the harvest. Under an attributed ledger the same model largely declines to
+do this. We flag this reading as preliminary until we finish the transcript pass, but the shape is hard to miss:
+**the weak model needs protection from social proof; the strong model needs accountability for endgame greed.** A
+single institutional design was optimal for neither — except the posted quota, which pinned both tiers at their
+zero-variance optimum, 350 episodes out of 350.
+
+If the crossover holds through the transcript analysis and the pending opus-5/fable-5 cells, it sharpens the
+design lesson from the original sweep: there is no capability-independent institutional recipe on offer here.
+Institutions interact with what the population's actual failure mode is — epistemic for weak models, incentive for
+strong ones — which is to say the classical Ostrom framing and our anchoring story are *both* right, on different
+segments of the capability axis.
+
 ## What this does and doesn't show
 
 The honest limitations list, in the spirit of small-n humility:
 
-- **Ten episodes per condition, two models, one lab.** The between-condition gaps are enormous (0/41 vs 18/19
-  survival across the anchor line; 0% vs 100% survival between open-meadow and institutions) and every condition's
-  variance is tiny, so we're comfortable with the qualitative ordering. The point estimates should not be quoted to a
-  decimal.
+- **Ten episodes per condition in the original sweep, two models, one lab.** The interim replication (previous
+  section) has since raised the core cells to n=250 and n=100 with condition means moving less than a point, so
+  sampling noise is no longer the concern it was — but the model set is still one lab's, the opus-5/fable-5 cells
+  are pending, and the sonnet-5 transcript analysis is unfinished. Treat the crossover mechanism as a hypothesis
+  with strong outcome-level support, not a demonstrated causal story.
 - **One prompt template.** Seats are told to maximize their own score and given complete rules. Different framing
   (team framing, explicit sustainability goals, no formula) would plausibly move absolute numbers. The comparisons
   are all within-template.
@@ -293,6 +356,12 @@ transient.
 
 **Sweep.** 10 episodes per condition, seeds 0–9, seat seed = `episode_seed × 1000 + slot`; 4 episodes in parallel.
 Conditions as tabled above; mixed condition alternates haiku/sonnet by slot parity. Total cost ≈ $15.
+
+**Scale replication (in progress).** Same protocol and prompt template, seeds 100+, cheapest models first:
+250 episodes × 4 conditions on `claude-haiku-4-5`, 100 × 4 on `claude-sonnet-5`, then 50 × 4 on `claude-opus-5`
+and 25 × 4 on `claude-fable-5` (pending). Retry ladder extended to ~2 minutes for shared-quota throttling;
+`PYTHONUNBUFFERED` progress logging; per-model concurrency caps. Interim hygiene: 317,520 calls, 85 transient
+failures (0.027%), zero episodes lost. Interim rows append to the same `llm_runs.jsonl` (filter `seed >= 100`).
 
 **Data.** Every episode row: [`experiments/results/llm_runs.jsonl`](../experiments/results/llm_runs.jsonl). Every
 replay, including full chat transcripts: [`experiments/results/llm_replays/`](../experiments/results/llm_replays/).
