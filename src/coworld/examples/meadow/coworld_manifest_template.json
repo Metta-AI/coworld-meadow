@@ -240,16 +240,6 @@
       "run": ["python", "-m", "coworld.examples.meadow.player.player", "random"],
       "source_url": "https://github.com/Metta-AI/coworld-meadow/tree/main/src/coworld/examples/meadow/player",
       "description": "Uniform random harvests; the maximum-variance control."
-    },
-    {
-      "id": "llm",
-      "name": "LLM Harvester",
-      "type": "player",
-      "image": "{{MEADOW_IMAGE}}",
-      "run": ["python", "-m", "coworld.examples.meadow.player.player", "llm"],
-      "env": { "USE_BEDROCK": "true", "AWS_REGION": "us-east-1", "AWS_DEFAULT_REGION": "us-east-1" },
-      "source_url": "https://github.com/Metta-AI/coworld-meadow/tree/main/src/coworld/examples/meadow/player",
-      "description": "Claude-driven seat via the Bedrock sidecar (InvokeModel). COWORLD_MEADOW_MODEL picks the model; COWORLD_MEADOW_PROMPT injects standing orders. The env region is the local-run default; the hosted runner overrides it with the sidecar's region."
     }
   ],
   "grader": [
@@ -370,23 +360,23 @@
       "players": [
         { "name": "Sustainable 1" },
         { "name": "Sustainable 2" },
-        { "name": "Reciprocator" },
+        { "name": "Reciprocator 1" },
+        { "name": "Reciprocator 2" },
         { "name": "Enforcer" },
         { "name": "Deterrable" },
         { "name": "Greedy" },
-        { "name": "Random" },
-        { "name": "Claude" }
+        { "name": "Random" }
       ]
     },
     "players": [
       { "player_id": "sustainable" },
       { "player_id": "sustainable" },
       { "player_id": "reciprocator" },
+      { "player_id": "reciprocator" },
       { "player_id": "enforcer" },
       { "player_id": "deterrable" },
       { "player_id": "greedy" },
-      { "player_id": "random" },
-      { "player_id": "llm" }
+      { "player_id": "random" }
     ]
   }
 }
