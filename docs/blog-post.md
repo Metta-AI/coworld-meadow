@@ -26,11 +26,15 @@ integer 0–3. The stock regrows by `0.35 · stock · (1 − stock/100)` per rou
 capacity. Below 10, the stock is dead permanently. An episode is 30 rounds (60 for scripted calibration); a
 player's score is its total harvest.
 
-The dynamics are unforgiving of small errors in aggregate demand. If all eight players harvest 1 per round
-(demand 8, just under peak regrowth), the stock grows while they harvest and the society collects more by round 10
-than a greedy society collects all game. At 2 each (demand 16), the stock is dead by round 6:
+The dynamics are unforgiving of small errors in aggregate demand. Holding every constant aggregate demand from 1
+to 24 fixed for 30 rounds: demand 9 and below survives, demand 10 and above kills the meadow. At 8 (1 per player),
+the stock grows while the society harvests, and it out-collects every greedy strategy by round 10. At 16 (2 each),
+the stock is dead by round 6:
 
 ![constant harvest](../experiments/results/fig_constant_harvest.png)
+
+*An [interactive version of this figure](assets/fig_constant_harvest.html) lets you hover to isolate any demand
+level (download and open in a browser, or view via the repo's pages deployment if enabled).*
 
 The social optimum is computable: a dynamic program over aggregate demand gives the best achievable group welfare
 (total harvest plus residual stock). We also track survival, collapse round, sanction counts, and synchrony (mean
