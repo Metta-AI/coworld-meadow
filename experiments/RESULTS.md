@@ -153,4 +153,43 @@ diversity; Wave 2 adds that model diversity isn't either — what would break th
 independence, and chat destroys it in one round.
 
 Reproduce everything: `run_scripted_experiments.py` (deterministic), then `run_llm_experiments.py` (needs model
-credentials), then `analyze.py`. See the repository README for setup.
+credentials), then `analyze.py`. All commands in `EC2_RUNBOOK.md`.
+
+## LLM seats (Wave 3): the four-model scale grid
+
+Seeds 100+, same protocol as Wave 2: 250 episodes/condition on haiku-4.5, 100 on sonnet-5, 50 on opus-5, 25 on
+fable-5. 428,400 calls, 171 transient failures (0.04%), zero episodes lost.
+
+| condition | haiku-4.5 (n=250) | sonnet-5 (n=100) | opus-5 (n=50) | fable-5 (n=25) |
+| --- | --- | --- | --- | --- |
+| open-meadow | 28.6 ± 0.7 · 0/250 | 78.3 ± 20.9 · 78/100 | 73.1 ± 5.2 · 0/50 | 66.7 ± 9.6 · 0/25 |
+| anonymous | 90.7 ± 17.8 · 221/250 | 66.8 ± 6.5 · 1/100 | 78.8 ± 6.2 · 0/50 | 44.6 ± 4.8 · 0/25 |
+| no-chat | 41.6 ± 16.1 · 0/250 | 80.0 ± 9.7 · 48/100 | 38.9 ± 4.1 · 0/50 | 41.2 ± 4.1 · 0/25 |
+| institutions | 96.7 ± 0.0 · 250/250 | 96.9 ± 0.0 · 100/100 | 60.0 ± 10.3 · 0/50 | 88.5 ± 3.2 · 0/25 |
+
+Cells: welfare % of optimum (mean ± sd) · survivals. Figure: `results/fig_llm_conditions_scale.png`.
+
+### Finding 10 — Wave-2 results replicate at 25× n
+
+Haiku open-meadow 28.6 ± 0.7 (pilot 28.7 ± 0.7), still 0 survivors; institutions still a zero-variance fixed
+point. No condition mean moved more than a point.
+
+### Finding 11 — sonnet-5 corrects the anchor instead of getting it right
+
+Sonnet-5 opens at the same doomed demand 16 as sonnet-4.5, then corrects: mean demand 8 by round 5, near-zero
+around round 10 to let the stock regrow, sustainable ~6 thereafter. With the ledger on, 78/100 survive; without
+it, 1/100 — anonymous deaths come at median round 26 (late drift into liquidation), vs haiku's anchoring deaths
+at median round 8.
+
+### Finding 12 — opus-5 and fable-5 liquidate the endgame; institutions can't stop them
+
+All 300 opus/fable episodes end with the stock dead, at 60–89% welfare: competent management followed by
+deliberate terminal liquidation (score counts own harvest; residual stock counts for nobody). Fable-5 under
+institutions holds demand at exactly 8 for ~20 rounds ("Sticking to 1. Stock rising—cooperation pays."), then
+ramps to 22 while narrating the defection as sustainability ("rounds are few—slight increase won't hurt the
+meadow"). Opus-5 is the one model where institutions are counterproductive (60.0% vs 73.1% open-meadow): it
+renegotiates the quota upward from round 2 and fires 278 sanctions (5.6/episode; haiku+sonnet fired zero in
+1,400 episodes), collapsing at median round 23. Opus-5's best condition is anonymity — the reverse of sonnet-5.
+
+Ablation cells (norm-only, sanctions-only, wrong-norm) are running; early norm-only matches institutions exactly,
+implying the sanction arm contributed nothing for haiku.
