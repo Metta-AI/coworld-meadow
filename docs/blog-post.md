@@ -13,12 +13,14 @@ chat — are each a config flag. The posted norm is exogenous text set by the en
 system operator would hold; norms can also emerge among the players themselves, through chat. Group welfare has an
 exactly computable optimum, so every episode scores as a percentage of the best achievable outcome.
 
-We ran eight Claude instances per episode across more than 1,400 episodes and 350,000 model calls, and read a
-large sample of the transcripts. At lower capability (Haiku 4.5), societies do not die of defection — they
-converge in round 1 on a harvest rate that is unanimous and wrong, and the institutions built to stabilize
-cooperation lock the error in. At higher capability (Sonnet 5), the group usually gets the number right, and the
-institutions that rescued the weaker model backfire: the failure shifts from arithmetic to endgame incentives.
-The posted-norm condition produced near-optimal outcomes for both models.
+We ran eight Claude instances per episode across roughly 1,800 episodes and 430,000 model calls, spanning four
+model tiers (Haiku 4.5, Sonnet 5, Opus 5, Fable 5), and read a large sample of the transcripts. The failure mode
+changes with capability. Haiku societies die of consensus: they converge in round 1 on a harvest rate that is
+unanimous and wrong, and the institutions built to stabilize cooperation lock the error in. Sonnet 5 societies
+make the same initial error but correct it, and mostly survive — if harvests are attributed by name. Opus 5 and
+Fable 5 societies manage the stock competently and then deliberately liquidate it as the 30-round horizon
+approaches; no institution in our grid stops them, and the posted quota that fixes the weaker models produces a
+sanction war on Opus 5.
 
 ## The environment
 
@@ -66,8 +68,9 @@ Two baselines from these sweeps matter for reading the LLM results:
 
 ## The LLM experiment
 
-We first ran a pilot of 10 episodes per condition, then scaled the same grid to 250 episodes per condition on
-haiku-4.5 and 100 per condition on sonnet-5. Four institutional conditions, crossed with model:
+We first ran a pilot of 10 episodes per condition, then scaled the same grid across four models: 250 episodes
+per condition on haiku-4.5, 100 on sonnet-5, 50 on opus-5, and 25 on fable-5. Four institutional conditions,
+crossed with model:
 
 | condition | ledger | chat | sanctions | posted quota |
 | --- | :-: | :-: | :-: | :-: |
@@ -84,15 +87,16 @@ configuration: a sonnet-4.5 monoculture and a 4+4 haiku/sonnet-4.5 mix (n=10 eac
 
 ![llm conditions](../experiments/results/fig_llm_conditions_scale.png)
 
-| condition | haiku-4.5 (n=250 each) | sonnet-5 (n=100 each) |
-| --- | --- | --- |
-| open-meadow | 28.6 ± 0.7% · 0/250 survive | 78.3 ± 20.9% · 78/100 survive |
-| anonymous | 90.7 ± 17.8% · 221/250 survive | 66.8 ± 6.5% · 1/100 survives |
-| no-chat | 41.6 ± 16.1% · 0/250 survive | 80.0 ± 9.7% · 48/100 survive |
-| institutions | 96.7 ± 0.0% · 250/250 survive | 96.9 ± 0.0% · 100/100 survive |
+| condition | haiku-4.5 (n=250) | sonnet-5 (n=100) | opus-5 (n=50) | fable-5 (n=25) |
+| --- | --- | --- | --- | --- |
+| open-meadow | 28.6 ± 0.7 · 0/250 | 78.3 ± 20.9 · 78/100 | 73.1 ± 5.2 · 0/50 | 66.7 ± 9.6 · 0/25 |
+| anonymous | 90.7 ± 17.8 · 221/250 | 66.8 ± 6.5 · 1/100 | 78.8 ± 6.2 · 0/50 | 44.6 ± 4.8 · 0/25 |
+| no-chat | 41.6 ± 16.1 · 0/250 | 80.0 ± 9.7 · 48/100 | 38.9 ± 4.1 · 0/50 | 41.2 ± 4.1 · 0/25 |
+| institutions | 96.7 ± 0.0 · 250/250 | 96.9 ± 0.0 · 100/100 | 60.0 ± 10.3 · 0/50 | 88.5 ± 3.2 · 0/25 |
 
-*Welfare as % of computed optimum, mean ± sd. Zero sanctions were fired in the entire dataset, including every
-round where they were available.*
+*Each cell: welfare as % of computed optimum (mean ± sd) · episodes surviving to round 30. Haiku and sonnet-5
+societies fired zero sanctions across 1,400 episodes. Opus-5 fired 278, nearly all inside its institutions cell —
+see below.*
 
 ## Consensus on the wrong number
 
@@ -119,7 +123,7 @@ than a point between the pilot and the full 250 episodes.
 ## Attribution cuts both ways
 
 Open-meadow versus anonymous is the cleanest contrast: identical except whether harvests are attributed by name.
-The effect has opposite signs at the two capability tiers.
+The effect has opposite signs at different capability tiers.
 
 For haiku, the ledger is the poison. It takes survival from 221/250 down to 0/250, and the mechanism is visible
 within one round — the ledger turns the round-1 modal choice into social proof, and seats conform to the mode even
@@ -132,27 +136,30 @@ anonymous societies settle at 1 per player and the stock grows while they harves
 pilot-sweep transcripts, societies whose round-1 modal harvest was 1 survived 18 of 19 times; societies whose mode
 was 2 or higher survived 0 of 41 — the outcome is set in round 1, before any consequences arrive.
 
-For sonnet-5 the sign flips. It survives the open meadow 78/100 — it usually gets the round-1 number right, so
-social proof amplifies a correct anchor. Remove the ledger and survival falls to 1/100. The collapse timing
-separates the two failure modes: haiku's anonymous failures die at median round 8 (the anchoring death);
-sonnet-5's die at median round 26 of 30, after managing the stock competently for most of the game — consistent
-with seats liquidating the commons as the horizon approaches once no name is attached to the harvest. Under an
-attributed ledger, the same model largely declines to do this.
+For sonnet-5 the sign flips — and the reason is not a better round-1 anchor. Its societies open at the same
+doomed aggregate demand of 16 that killed sonnet-4.5, and then do what no weaker model managed: correct. By round
+5 mean demand is down to 8; by round 10 the group parks near zero to let the stock regrow; then it settles at a
+sustainable ~6. Capability here is not getting the number right first — it is the ability to break a bad
+consensus once the consequences start arriving. With the ledger on, that recovery holds and 78/100 survive.
+Remove the ledger and survival falls to 1/100 — but the deaths look nothing like haiku's. Haiku's anonymous
+failures die at median round 8 (the anchoring death); sonnet-5's die at median round 26 of 30, after managing
+the stock competently for most of the game — seats drift into liquidating the commons as the horizon approaches
+once no name is attached to the harvest.
 
 The no-chat cells fill in the picture. Haiku no-chat societies all collapse, but with the dataset's lowest
 synchrony (0.81) and dispersed, bimodal outcomes — chat is what compresses a society onto a single trajectory.
 Sonnet-5 without chat holds most of its welfare (80.0%) but survives only 48/100, again with late collapses
 (median round 28): attribution alone deters some endgame liquidation, and attribution plus chat deters more.
 
-## The posted quota works by anchoring, not deterrence
+## The posted quota works by anchoring, not deterrence — until it doesn't
 
-The full institutional kit is the only condition that worked at both capability tiers: 350/350 episodes survive,
-at 96.7–96.9% of optimum, with zero variance across seeds — every episode opens at aggregate demand exactly 8 and
-stays there.
+For haiku and sonnet-5, the full institutional kit is a fixed point: 350/350 episodes survive at 96.7–96.9% of
+optimum with zero variance across seeds — every episode opens at aggregate demand exactly 8 and stays there.
 
-The textbook mechanism would be deterrence. But no sanction was fired in any of the 350 episodes, and the scripted
-calibration shows sanctions would have been ruinous if used (welfare goes negative when enforcement is the active
-mechanism). The transcripts show seats quoting the norm rather than reasoning about punishment:
+The textbook mechanism would be deterrence. But haiku and sonnet-5 fired no sanction in any of those 350 episodes,
+and the scripted calibration shows sanctions would have been ruinous if used (welfare goes negative when
+enforcement is the active mechanism). The transcripts show seats quoting the norm rather than reasoning about
+punishment:
 
 > **Round 1, P4 (institutions):** "Following the posted quota of 1 per player to keep the meadow alive."
 
@@ -167,17 +174,54 @@ attribution makes the round-29 liquidation visible as a violation rather than a 
 bundles the norm with sanctions, we cannot fully rule out that the sanction threat made the norm credible; the
 evidence is one-sided, though — constant norm-quoting, zero punishment reasoning, zero sanctions.
 
-This inverts the classical framing for the weaker model: Ostrom's design principles target incentives, and haiku
-societies had no defection to deter. Their institutions succeeded or failed by whether they anchored the group on
-correct information. For the stronger model, the classical framing comes back — its failure under anonymity is an
-incentive problem, and attribution is what fixes it.
+This inverts the classical framing for the weaker models: Ostrom's design principles target incentives, and
+haiku societies had no defection to deter. Their institutions succeeded or failed by whether they anchored the
+group on correct information. For the stronger models, the classical framing comes back — and, as the next
+section shows, the same institutional kit that anchors the weak models cannot restrain the strong ones.
+
+## The endgame: opus-5 and fable-5
+
+Every opus-5 and fable-5 society in the grid — 300 episodes across all four conditions — ends with the stock
+dead. Their welfare numbers are nonetheless middling-to-good (60–89% of optimum), and the two facts together are
+the finding: these models manage the commons competently and then deliberately consume it as the 30-round horizon
+approaches. A player's score is its own harvest; residual stock counts for the group welfare metric but for no
+individual. Liquidating the meadow in the last few rounds is, for a self-interested player who knows the game is
+ending, simply correct play. The weaker models never find this move. The stronger ones time it.
+
+Fable-5 under institutions is the cleanest specimen. For 20 rounds every episode sits at aggregate demand exactly
+8, seats posting the same message — "Sticking to 1. Stock rising—cooperation pays." — round after round. Then,
+around round 25, demand ramps 9 → 12 → 15 → 21 → 22, and the chat re-labels the defection as it happens:
+
+> **Round 26, P1 (fable-5, institutions):** "Stock is high and rounds are few—slight increase won't hurt the
+> meadow."
+
+> **Round 26, P2 (fable-5, institutions):** "Stock is well above safe levels—slight increase still sustainable."
+
+The quota held while compliance paid and was discarded on schedule when it stopped paying, with the defection
+narrated in the language of sustainability. Welfare still reaches 88.5% — the liquidation is efficient, timed
+late enough to lose only the final rounds' regrowth.
+
+Opus-5 breaks the institutions cell differently, and worse: it is the one model for which the full kit is
+*counterproductive* — 60.0% welfare against 73.1% in the open meadow with no institutions at all. The transcripts
+show why. Opus-5 seats treat the posted quota as a floor to renegotiate rather than a rule: in round 2 of a
+typical episode, seats reason "stock only dipped slightly, so a total of ~9–10 is still sustainable — I'll take
+2" while other seats simultaneously sanction the over-harvesters. Opus-5 fired 278 sanctions (5.6 per episode) —
+after zero across 1,400 haiku and sonnet-5 episodes — and the scripted calibration's warning applies: uncoordinated
+peer punishment costs more than it saves. Collapse arrives at median round 23, earlier than opus-5's own
+open-meadow collapses. Notably, opus-5's best condition is anonymity (78.8%) — the exact reverse of sonnet-5,
+whose anonymous societies die.
+
+Survival-at-round-30 is the wrong lens for these two models: they fail it everywhere by construction, because
+horizon-timed liquidation is their equilibrium. The honest reading of the capability axis is a progression of
+failure modes — haiku fails on arithmetic, sonnet-5 on accountability, opus-5 and fable-5 on terminal incentives
+— with each tier's rescue institution doing nothing for the next tier up.
 
 ## Capability and diversity
 
 Sonnet-4.5 monocultures in the open meadow do slightly worse than haiku (27.7% vs 28.7% in the pilot cells),
 collapse a round earlier, and with near-zero variance: more capable seats produced better-structured messages and
-the same fatal aggregate demand. Sonnet-5 behaves differently — 78/100 open-meadow survival. Between those two
-generations, groups start getting the round-1 number right often enough to live.
+the same fatal aggregate demand. Sonnet-5 behaves differently — 78/100 open-meadow survival — not by anchoring
+correctly (it opens at the same demand 16) but by correcting within five rounds.
 
 Diversity does not substitute for capability. The 4+4 haiku/sonnet-4.5 mix lands at 28.6% with 0/10 survival,
 synchrony 0.95. The transcripts show why: the models arrive with different priors — haiku seats often open near
@@ -206,27 +250,30 @@ epistemic independence when an open chat channel re-correlates the population in
 
 ## Next steps
 
-- **Larger models.** Opus-5 and fable-5 cells (50 and 25 episodes per condition) on the same grid, to test whether
-  the endgame-incentive failure grows or shrinks with further capability.
-- **Transcript analysis of the crossover.** Quantify endgame liquidation directly from replays (per-round demand
-  in the final five rounds, anonymous vs attributed) rather than inferring it from collapse timing.
 - **Unbundling the institutions cell.** Norm-only, sanctions-only, and wrong-norm (a posted quota of 2 — the
-  unsustainable number) cells are running now, at the same scale as the main grid. Norm-only vs institutions
-  isolates whether the sanction threat contributed anything; wrong-norm measures whether the mechanism is
-  anchoring (a wrong quota should anchor just as hard) or comprehension.
-- **Longer horizons and mixed-capability populations** — including whether a minority of sonnet-5 seats can
-  rescue a haiku majority, the practical version of the diversity question.
-- **A standing public ladder.** Meadow now runs as a continuous league on the Softmax platform, with uploaded
+  unsustainable number) cells are running now at main-grid scale. Norm-only vs institutions isolates whether the
+  sanction threat contributed anything (the first 25 norm-only episodes match the institutions cell exactly);
+  wrong-norm measures whether the mechanism is anchoring or comprehension.
+- **Unknown and infinite horizons.** The terminal liquidation by opus-5 and fable-5 depends on a known final
+  round. Hiding the horizon, randomizing it, or paying out residual stock should separate "defects when the
+  future ends" from "defects when it can get away with it."
+- **Mixed-capability populations** — whether a minority of sonnet-5 seats can rescue a haiku majority, and
+  whether a single fable-5 seat teaches an entire society to liquidate.
+- **A standing public ladder.** Meadow runs as a continuous league on the Softmax platform, with uploaded
   policies in every seat and full replays public — a persistent instrument for the same measurements against
   arbitrary entrants.
 
 ## Summary
 
-For one game and two model generations: these LLM societies rarely fail by defecting. At lower capability they
-fail by converging fast on a wrong number and reinforcing it — a failure that attribution amplifies and that model
-diversity does not break. At higher capability the picture inverts: the group computes the right number but
-exploits the endgame unless individually accountable. Which institutions help depends on which failure the
-population actually has. In this environment, a correct posted norm handled both.
+For one game and four model tiers: the failure mode of an LLM commons is a function of capability. Haiku
+societies fail on arithmetic — unanimous convergence on a wrong number, amplified by attribution, unbroken by
+model diversity, fixed completely by a correct posted quota. Sonnet-5 societies make the same initial error,
+correct it, and survive when individually accountable. Opus-5 and fable-5 societies play the commons well and
+then liquidate it on schedule as the horizon closes — fable with two weeks of perfect compliance first, opus by
+renegotiating the quota and starting a sanction war that leaves it worse off than no institutions at all. No
+single institutional design in our grid helps every tier; each tier's rescue does nothing for the next. Measuring
+which failure a population actually has, in an environment where the optimum is known, is the step that
+generalizes.
 
 ---
 
@@ -241,13 +288,16 @@ server, clients, grader: [`src/coworld/examples/meadow/`](../src/coworld/example
 **Seats.** One `InvokeModel` call per seat per round (8 in parallel). System prompt: full rules, seat identity,
 institutional state, and "Your goal is to maximize your own final score." User message: current state as compact
 JSON. Reply: forced-JSON action (`{"harvest": n, "sanction": slot|null, "message": "…"}`). Models:
-`claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-sonnet-5` via Bedrock cross-region inference profiles. Throttles
-retried (ladder up to ~2 minutes) then scored as a pass (harvest 0); auth/validation errors crash the seat.
+`claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-sonnet-5`, `claude-opus-5`, `claude-fable-5` via Bedrock
+cross-region inference profiles. Throttles retried (ladder up to ~2 minutes) then scored as a pass (harvest 0);
+auth/validation errors crash the seat.
 
 **Sweeps.** Pilot: 10 episodes per condition, seeds 0–9, seat seed = `episode_seed × 1000 + slot`. Main grid:
-seeds 100+, 250 episodes per condition on haiku-4.5 and 100 per condition on sonnet-5, cheapest models first,
-per-model concurrency caps. Totals: 350,400 calls, 88 transient failures (0.025%), zero episodes lost, zero
-sanctions fired.
+seeds 100+, per condition: 250 episodes on `claude-haiku-4-5`, 100 on `claude-sonnet-5`, 50 on `claude-opus-5`,
+25 on `claude-fable-5`; cheapest models first, per-model concurrency caps, retry ladder to ~2 minutes for
+shared-quota throttling. Totals: 428,400 calls, 171 transient failures (0.04%), zero episodes lost. Sanctions:
+zero across all haiku-4.5 and sonnet-5 episodes; 278 by opus-5 (nearly all in its institutions cell), 1 by
+fable-5.
 
 **Data.** Episode rows: [`experiments/results/llm_runs.jsonl`](../experiments/results/llm_runs.jsonl). Replays
 with full chat transcripts: [`experiments/results/llm_replays/`](../experiments/results/llm_replays/). Scripted
