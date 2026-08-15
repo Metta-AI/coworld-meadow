@@ -208,3 +208,6 @@ Norm-only ≈ institutions: the sanction arm contributed nothing. Wrong-norm kil
 trajectory (sd 0.0, median collapse round 4, faster than open-meadow): anchoring, not comprehension. Sanctions
 without a posted standard get used (510 fired vs 0 when the quota is present) and make things worse than no
 institutions at all. Sonnet-5 unbundling cells in flight.
+
+Sonnet-5 unbundling (n=100 each): norm-only 96.9 ± 0.0, 100/100 — identical to institutions; sanctions-only
+77.8 ± 24.0, 79/100, 40 sanctions — identical to open-meadow. The sanction arm is inert at both tiers.
