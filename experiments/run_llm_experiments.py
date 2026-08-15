@@ -12,6 +12,11 @@ Conditions (pick with --conditions):
 - anonymous:     ledger off; only the aggregate is visible (no reputation).
 - institutions:  ledger + costly sanctions + a posted quota norm.
 - no-chat:       open meadow without communication.
+- norm-only:     open meadow + the posted quota, no sanctions (unbundles the
+                 institutions cell).
+- sanctions-only: open meadow + sanctions, no posted quota.
+- wrong-norm:    open meadow + a posted quota of 2 — institutional text that
+                 anchors on the unsustainable number.
 - mixed-models:  open meadow, seats split across --mixed-models entries;
                  monoculture comparisons come from the same-config
                  open-meadow runs of each single model.
@@ -54,6 +59,19 @@ CONDITION_CONFIGS: dict[str, dict] = {
         norm_text="Posted quota: 1 per player per round keeps the meadow alive.",
     ),
     "no-chat": dict(ledger_public=True, sanctions_enabled=False, chat_enabled=False),
+    "norm-only": dict(
+        ledger_public=True,
+        sanctions_enabled=False,
+        chat_enabled=True,
+        norm_text="Posted quota: 1 per player per round keeps the meadow alive.",
+    ),
+    "sanctions-only": dict(ledger_public=True, sanctions_enabled=True, chat_enabled=True),
+    "wrong-norm": dict(
+        ledger_public=True,
+        sanctions_enabled=False,
+        chat_enabled=True,
+        norm_text="Posted quota: 2 per player per round keeps the meadow alive.",
+    ),
     "mixed-models": dict(ledger_public=True, sanctions_enabled=False, chat_enabled=True),
 }
 

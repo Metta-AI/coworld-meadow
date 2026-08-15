@@ -9,8 +9,9 @@ structure is the whole problem and the outcome is a number rather than a rubric.
 
 Meadow is a commons game: eight players, one shared stock that regrows logistically and dies permanently if
 over-harvested. Four institutions — a public reputation ledger, costly peer punishment, a posted norm, and public
-chat — are each a config flag. Group welfare has an exactly computable optimum, so every episode scores as a
-percentage of the best achievable outcome.
+chat — are each a config flag. The posted norm is exogenous text set by the environment designer, the lever a
+system operator would hold; norms can also emerge among the players themselves, through chat. Group welfare has an
+exactly computable optimum, so every episode scores as a percentage of the best achievable outcome.
 
 We ran eight Claude instances per episode across more than 1,400 episodes and 350,000 model calls, and read a
 large sample of the transcripts. At lower capability (Haiku 4.5), societies do not die of defection — they
@@ -44,7 +45,7 @@ pairwise same-action rate).
 | --- | --- |
 | **Ledger** (`ledger_public`) | Everyone sees each player's per-round harvest and running total, by name. Off: only the aggregate is visible. |
 | **Sanctions** (`sanctions_enabled`) | Any player may pay 1 point to burn 3 points from a named player. |
-| **Norm** (`norm_text`) | A line of text in every observation. We post: "Posted quota: 1 per player per round keeps the meadow alive." |
+| **Posted quota** (`norm_text`) | A line of institutional text in every observation, authored by the environment designer — not by players. We post: "Posted quota: 1 per player per round keeps the meadow alive." |
 | **Chat** (`chat_enabled`) | One signed public message per player per round. |
 
 ## Scripted baselines
@@ -68,7 +69,7 @@ Two baselines from these sweeps matter for reading the LLM results:
 We first ran a pilot of 10 episodes per condition, then scaled the same grid to 250 episodes per condition on
 haiku-4.5 and 100 per condition on sonnet-5. Four institutional conditions, crossed with model:
 
-| condition | ledger | chat | sanctions | posted norm |
+| condition | ledger | chat | sanctions | posted quota |
 | --- | :-: | :-: | :-: | :-: |
 | open-meadow | on | on | — | — |
 | anonymous | — | on | — | — |
@@ -155,8 +156,12 @@ mechanism). The transcripts show seats quoting the norm rather than reasoning ab
 
 > **Round 1, P4 (institutions):** "Following the posted quota of 1 per player to keep the meadow alive."
 
-Our reading: haiku open-meadow societies die because their emergent focal number is 2; the posted quota replaces
-the emergent number with a correct one before convergence happens. The same conformity that kills the open meadow
+One distinction matters here: the quota is *imposed* text, written by the environment designer into every
+observation — players never author it. Emergent norms exist in the game too, and they are the villain of the
+open-meadow sections: the round-1 consensus on 2 is a player-made norm, formed and enforced entirely through the
+ledger and chat. The institutions cell is therefore a contest between an imposed correct number and the emergent
+wrong one. Our reading: haiku open-meadow societies die because their emergent focal number is 2; the posted quota
+replaces it with a correct one before convergence happens. The same conformity that kills the open meadow
 then locks in the right number. For sonnet-5, the quota also removes the endgame temptation — a posted rule with
 attribution makes the round-29 liquidation visible as a violation rather than a judgment call. Because the design
 bundles the norm with sanctions, we cannot fully rule out that the sanction threat made the norm credible; the
@@ -191,10 +196,9 @@ epistemic independence when an open chat channel re-correlates the population in
   sampling noise is not the concern; model coverage is.
 - **One prompt template.** Seats are told to maximize their own score and given complete rules. Different framing
   would plausibly move absolute numbers; comparisons are within-template.
-- **The posted norm was correct.** The mechanism is anchoring, so a wrong posted quota would presumably anchor
-  just as hard. We have not measured societies under bad institutional text.
-- **Norm and sanctions are bundled**, so the anchoring account of the institutions cell is inference, not a clean
-  ablation.
+- **The posted quota was correct, and it was bundled with sanctions.** The anchoring account of the institutions
+  cell is inference, not a clean ablation, and we have not yet measured societies under bad institutional text.
+  The unbundling cells (norm-only, sanctions-only, wrong-norm) are running — see Next steps.
 - **The endgame-liquidation account of sonnet-5's anonymous failures** rests on collapse timing; the supporting
   transcript analysis is in Next steps.
 - **Short horizon, no adversaries.** 30 rounds; every seat wants the commons to survive. Longer horizons and
@@ -206,8 +210,10 @@ epistemic independence when an open chat channel re-correlates the population in
   the endgame-incentive failure grows or shrinks with further capability.
 - **Transcript analysis of the crossover.** Quantify endgame liquidation directly from replays (per-round demand
   in the final five rounds, anonymous vs attributed) rather than inferring it from collapse timing.
-- **Norm-only and wrong-norm cells.** Unbundle the posted quota from sanctions, and post an incorrect quota to
-  measure how hard bad institutional text anchors.
+- **Unbundling the institutions cell.** Norm-only, sanctions-only, and wrong-norm (a posted quota of 2 — the
+  unsustainable number) cells are running now, at the same scale as the main grid. Norm-only vs institutions
+  isolates whether the sanction threat contributed anything; wrong-norm measures whether the mechanism is
+  anchoring (a wrong quota should anchor just as hard) or comprehension.
 - **Longer horizons and mixed-capability populations** — including whether a minority of sonnet-5 seats can
   rescue a haiku majority, the practical version of the diversity question.
 - **A standing public ladder.** Meadow now runs as a continuous league on the Softmax platform, with uploaded
