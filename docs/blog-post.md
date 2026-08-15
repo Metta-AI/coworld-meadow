@@ -170,9 +170,22 @@ ledger and chat. The institutions cell is therefore a contest between an imposed
 wrong one. Our reading: haiku open-meadow societies die because their emergent focal number is 2; the posted quota
 replaces it with a correct one before convergence happens. The same conformity that kills the open meadow
 then locks in the right number. For sonnet-5, the quota also removes the endgame temptation — a posted rule with
-attribution makes the round-29 liquidation visible as a violation rather than a judgment call. Because the design
-bundles the norm with sanctions, we cannot fully rule out that the sanction threat made the norm credible; the
-evidence is one-sided, though — constant norm-quoting, zero punishment reasoning, zero sanctions.
+attribution makes the round-29 liquidation visible as a violation rather than a judgment call.
+
+Because the original design bundled the quota with sanctions, we ran the unbundled cells on haiku at full scale
+(n=250 each). They settle the mechanism question:
+
+- **norm-only** (quota, no sanctions): 96.5%, 249/250 survive — indistinguishable from the full kit. The
+  sanction arm contributed nothing.
+- **wrong-norm** (a posted quota of 2, the unsustainable number): 27.8 ± 0.0%, 0/250 survive, median collapse
+  round 4 — faster than no institutions at all, and every one of 250 societies died on the identical trajectory.
+  Incorrect text anchors exactly as absolutely as correct text. The mechanism is anchoring, not comprehension,
+  and institutional text is an amplifier with no opinion about whether the number it amplifies is right.
+- **sanctions-only** (sanctions, no quota): 26.1%, 0/250 — *worse* than the bare open meadow. And where the
+  bundled cell saw zero sanctions, sanctions-only societies fired 510 of them. The quota had been doing double
+  duty: it anchored harvests, and by producing perfect compliance it left nothing to punish. Give the same
+  population the weapon without the standard and it uses the weapon — at a net loss, exactly as the scripted
+  calibration predicted.
 
 This inverts the classical framing for the weaker models: Ostrom's design principles target incentives, and
 haiku societies had no defection to deter. Their institutions succeeded or failed by whether they anchored the
@@ -240,9 +253,9 @@ epistemic independence when an open chat channel re-correlates the population in
   sampling noise is not the concern; model coverage is.
 - **One prompt template.** Seats are told to maximize their own score and given complete rules. Different framing
   would plausibly move absolute numbers; comparisons are within-template.
-- **The posted quota was correct, and it was bundled with sanctions.** The anchoring account of the institutions
-  cell is inference, not a clean ablation, and we have not yet measured societies under bad institutional text.
-  The unbundling cells (norm-only, sanctions-only, wrong-norm) are running — see Next steps.
+- **The unbundling ablations are haiku-complete but sonnet-5-partial.** Norm-only, sanctions-only, and
+  wrong-norm ran at n=250 on haiku; the sonnet-5 cells (n=100 each) are still running, with early norm-only
+  episodes matching the institutions cell exactly.
 - **The endgame-liquidation account of sonnet-5's anonymous failures** rests on collapse timing; the supporting
   transcript analysis is in Next steps.
 - **Short horizon, no adversaries.** 30 rounds; every seat wants the commons to survive. Longer horizons and
@@ -250,10 +263,8 @@ epistemic independence when an open chat channel re-correlates the population in
 
 ## Next steps
 
-- **Unbundling the institutions cell.** Norm-only, sanctions-only, and wrong-norm (a posted quota of 2 — the
-  unsustainable number) cells are running now at main-grid scale. Norm-only vs institutions isolates whether the
-  sanction threat contributed anything (the first 25 norm-only episodes match the institutions cell exactly);
-  wrong-norm measures whether the mechanism is anchoring or comprehension.
+- **Finish the sonnet-5 unbundling cells**, and run wrong-norm on the models that resist anchoring — does
+  opus-5 renegotiate a wrong quota the way it renegotiates a right one?
 - **Unknown and infinite horizons.** The terminal liquidation by opus-5 and fable-5 depends on a known final
   round. Hiding the horizon, randomizing it, or paying out residual stock should separate "defects when the
   future ends" from "defects when it can get away with it."

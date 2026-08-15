@@ -193,3 +193,18 @@ renegotiates the quota upward from round 2 and fires 278 sanctions (5.6/episode;
 
 Ablation cells (norm-only, sanctions-only, wrong-norm) are running; early norm-only matches institutions exactly,
 implying the sanction arm contributed nothing for haiku.
+
+### Finding 13 — the unbundled institutions cells (haiku, n=250 each)
+
+| cell | welfare % | survival | sanctions fired |
+| --- | --- | --- | --- |
+| open-meadow (reference) | 28.6 ± 0.7 | 0/250 | 0 |
+| norm-only | 96.5 ± 3.9 | 249/250 | 0 |
+| sanctions-only | 26.1 ± 5.5 | 0/250 | 510 |
+| institutions (norm+sanctions) | 96.7 ± 0.0 | 250/250 | 0 |
+| wrong-norm (posted quota of 2) | 27.8 ± 0.0 | 0/250 | 0 |
+
+Norm-only ≈ institutions: the sanction arm contributed nothing. Wrong-norm kills every society on an identical
+trajectory (sd 0.0, median collapse round 4, faster than open-meadow): anchoring, not comprehension. Sanctions
+without a posted standard get used (510 fired vs 0 when the quota is present) and make things worse than no
+institutions at all. Sonnet-5 unbundling cells in flight.
