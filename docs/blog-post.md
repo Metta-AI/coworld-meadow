@@ -59,10 +59,14 @@ aggregate demand clears the regrowth rate.
 
 Four institutional conditions, crossed with model:
 
-- **open-meadow** — ledger and chat, no sanctions, no norm.
-- **anonymous** — chat only; players see the aggregate stock, not each other.
-- **institutions** — ledger, sanctions, and the posted quota.
-- **no-chat** — ledger only.
+| condition | ledger | chat | sanctions | posted norm |
+| --- | :-: | :-: | :-: | :-: |
+| open-meadow | on | on | — | — |
+| anonymous | — | on | — | — |
+| no-chat | on | — | — | — |
+| institutions | on | on | on | on |
+
+With the ledger off (anonymous), players see only the aggregate stock, not who harvested what.
 
 Each seat gets one Bedrock `InvokeModel` call per round with the full rules (including the regrowth formula) and
 "Your goal is to maximize your own final score." Two supplementary cells run in the open-meadow configuration: a
