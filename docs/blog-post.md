@@ -47,17 +47,26 @@ pairwise same-action rate).
 | **Norm** (`norm_text`) | A line of text in every observation. We post: "Posted quota: 1 per player per round keeps the meadow alive." |
 | **Chat** (`chat_enabled`) | One signed public message per player per round. |
 
-Scripted calibration (greedy, sustainable, reciprocator, deterrable, and enforcer policies) established two
-baselines that matter for reading the LLM results. First, enforcement is expensive: scripted societies survive only
-with 5+ enforcers out of 8, at −78% welfare — punishment costs exceed what the delayed collapse returns. Second,
-noise is not diversity: 30 seeds of uniform-random harvesters all collapse. What matters is whether expected
-aggregate demand clears the regrowth rate.
+## Scripted baselines
+
+Before spending money on model calls, we ran scripted policies through the same environment: greedy (always 3),
+sustainable (always 1), reciprocators (match last round's average), deterrable harvesters (drop to 1 after being
+sanctioned), enforcers (pay to sanction the ledger's worst offender), and uniform-random seats. We swept
+population mixes and institutional flags over 60-round episodes.
+
+Two baselines from these sweeps matter for reading the LLM results:
+
+- **Enforcement is expensive.** Scripted societies survive only with 5+ enforcers out of 8, and at −78% welfare —
+  the sanction costs and burns exceed what the delayed collapse returns.
+- **Noise is not diversity.** All 30 seeds of uniform-random harvesters collapse. Behavioral variance doesn't
+  save the commons; expected aggregate demand has to clear the regrowth rate.
 
 ![institution grid](../experiments/results/fig_institution_grid.png)
 
-## The experiment
+## The LLM experiment
 
-Four institutional conditions, crossed with model:
+We first ran a pilot of 10 episodes per condition, then scaled the same grid to 250 episodes per condition on
+haiku-4.5 and 100 per condition on sonnet-5. Four institutional conditions, crossed with model:
 
 | condition | ledger | chat | sanctions | posted norm |
 | --- | :-: | :-: | :-: | :-: |
@@ -69,8 +78,8 @@ Four institutional conditions, crossed with model:
 With the ledger off (anonymous), players see only the aggregate stock, not who harvested what.
 
 Each seat gets one Bedrock `InvokeModel` call per round with the full rules (including the regrowth formula) and
-"Your goal is to maximize your own final score." Two supplementary cells run in the open-meadow configuration: a
-sonnet-4.5 monoculture and a 4+4 haiku/sonnet-4.5 mix (n=10 each).
+"Your goal is to maximize your own final score." Two supplementary cells ran at pilot scale in the open-meadow
+configuration: a sonnet-4.5 monoculture and a 4+4 haiku/sonnet-4.5 mix (n=10 each).
 
 ![llm conditions](../experiments/results/fig_llm_conditions_scale.png)
 
@@ -103,8 +112,8 @@ The seats do the arithmetic, publish it, and override it with the consensus:
 
 No seat raced to grab the last units; after collapse, all eight harvested zero for the remaining rounds. The
 failure is consensus on an incorrect number, not defection — the correlated-behavior failure from Anthropic's
-note, but with cooperative rather than adversarial content. This result is stable: the condition mean moved less
-than a point between a 10-episode pilot and the full 250.
+note, but with cooperative rather than adversarial content. The result is stable: the condition mean moved less
+than a point between the pilot and the full 250 episodes.
 
 ## Attribution cuts both ways
 
@@ -118,9 +127,9 @@ when their own arithmetic disagrees:
 > **Round 2, P2 (open-meadow):** "I harvested conservatively at 1, but most players harvested 2. Adjustin[g]"
 
 Anonymous haiku seats, with no mode to see, fall back on their own arithmetic, which is usually right: most
-anonymous societies settle at 1 per player and the stock grows while they harvest. In an audit of all 60 pilot
-transcripts, societies whose round-1 modal harvest was 1 survived 18 of 19 times; societies whose mode was 2 or
-higher survived 0 of 41 — the outcome is set in round 1, before any consequences arrive.
+anonymous societies settle at 1 per player and the stock grows while they harvest. In an audit of all 60
+pilot-sweep transcripts, societies whose round-1 modal harvest was 1 survived 18 of 19 times; societies whose mode
+was 2 or higher survived 0 of 41 — the outcome is set in round 1, before any consequences arrive.
 
 For sonnet-5 the sign flips. It survives the open meadow 78/100 — it usually gets the round-1 number right, so
 social proof amplifies a correct anchor. Remove the ledger and survival falls to 1/100. The collapse timing
