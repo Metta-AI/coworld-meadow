@@ -46,7 +46,7 @@ pairwise same-action rate).
 | --- | --- |
 | **Ledger** (`ledger_public`) | Everyone sees each player's per-round harvest and running total, by name. Off: only the aggregate is visible. |
 | **Sanctions** (`sanctions_enabled`) | Any player may pay 1 point to burn 3 points from a named player. |
-| **Posted quota** (`norm_text`) | A line of institutional text in every observation, authored by the environment designer — not by players. We post: "Posted quota: 1 per player per round keeps the meadow alive." |
+| **Posted quota** (`norm_text`) | We inject a line of rule text into every observation — an experimenter's intervention standing in for exogenous institutional text (posted rules, platform policy); players never author it. We post: "Posted quota: 1 per player per round keeps the meadow alive." |
 | **Chat** (`chat_enabled`) | One signed public message per player per round. |
 
 ## Scripted baselines
