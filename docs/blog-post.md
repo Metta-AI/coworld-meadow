@@ -9,8 +9,8 @@ structure is the whole problem and the outcome is a number rather than a rubric.
 
 Meadow is a commons game: eight players, one shared stock that regrows logistically and dies permanently if
 over-harvested. Four institutions — a public reputation ledger, costly peer punishment, a posted norm, and public
-chat — are each a config flag. The posted norm is exogenous text set by the environment designer, the lever a
-system operator would hold; norms can also emerge among the players themselves, through chat. Group welfare has an
+chat — can each be enabled independently. The posted norm is exogenous text set by the environment designer, the
+lever a system operator would hold; norms can also emerge among the players themselves, through chat. Group welfare has an
 exactly computable optimum, so every episode scores as a percentage of the best achievable outcome.
 
 We ran eight Claude instances per episode across roughly 1,800 episodes and 430,000 model calls, spanning four
@@ -29,10 +29,9 @@ integer 0–3. The stock regrows by `0.35 · stock · (1 − stock/100)` per rou
 capacity. Below 10, the stock is dead permanently. An episode is 30 rounds (60 for scripted calibration); a
 player's score is its total harvest.
 
-The dynamics are unforgiving of small errors in aggregate demand. Holding every constant aggregate demand from 1
-to 24 fixed for 30 rounds: demand 9 and below survives, demand 10 and above kills the meadow. At 8 (1 per player),
-the stock grows while the society harvests, and it out-collects every greedy strategy by round 10. At 16 (2 each),
-the stock is dead by round 6:
+Holding every constant aggregate demand from 1 to 24 fixed for 30 rounds: demand 9 and below survives, demand 10
+and above collapses the stock. At 8 (1 per player), the stock grows while the society harvests, and cumulative
+harvest passes every greedy strategy by round 10. At 16 (2 each), the meadow is dead by round 6:
 
 ![constant harvest](../experiments/results/fig_constant_harvest.png)
 

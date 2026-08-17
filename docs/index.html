@@ -294,7 +294,7 @@ footer p + p { margin-top: 0.8em; }
     <h1>The meadow test: what kills a commons run by language models</h1>
     <p class="standfirst">We seated eight Claude instances at a shared, regenerating resource — 1,800 times, across four
     model tiers and seven institutional designs. The societies almost never fail by defecting. What fails, and what
-    fixes it, changes completely with capability.</p>
+    fixes it, changes with capability.</p>
     <div class="byline"><b>Softmax</b> · August 2026 · <a href="https://github.com/Metta-AI/coworld-meadow">code &amp; data</a></div>
   </div>
   <div class="wide">
@@ -314,9 +314,9 @@ footer p + p { margin-top: 0.8em; }
     an integer 0–3. The stock regrows by <code>0.35&thinsp;·&thinsp;s&thinsp;·&thinsp;(1&thinsp;−&thinsp;s/100)</code> —
     at most ~8.75 units per round. If it ever drops below 10, it is dead <em>forever</em>. Thirty rounds; a player's
     score is everything it harvests.</p>
-    <p>The design constraint that shaped everything else: the social optimum is computable, so "the society did badly"
-    is never a judgment call. And the dynamics are unforgiving — hold any constant aggregate demand and the meadow
-    either flourishes or dies:</p>
+    <p>The social optimum is computable: a dynamic program over aggregate demand gives the best achievable group
+    welfare, and every episode scores as a percentage of it. The figure below runs every constant aggregate demand
+    from 1 to 24 through the engine:</p>
   </div>
   <figure class="breakout">
     <div class="fig-title">Every constant aggregate demand, 1–24 · hover to isolate</div>
@@ -325,25 +325,25 @@ footer p + p { margin-top: 0.8em; }
       <svg id="const-cum" viewBox="0 0 500 320" style="flex:1 1 400px; min-width:320px; max-width:500px"></svg>
     </div>
     <div class="readout" id="const-readout">Hover a line — green demands survive, clay demands kill the meadow.</div>
-    <figcaption>Left: stock over time for each constant demand level. Right: what the society collects. Demand 9
-    collects the most of any constant strategy and still survives; demand 10 is the cliff. Eight players harvesting
-    "a modest 2 each" (demand 16) kill the meadow by round 6.</figcaption>
+    <figcaption>Left: stock over time at each constant demand level. Right: cumulative harvest. Demand 9 and below
+    survives; 10 and above collapses the stock. At demand 16 — 2 per player — the meadow is dead by round 6.</figcaption>
   </figure>
   <div class="col">
-    <p>Four institutions are config flags, not code: a <strong>ledger</strong> (everyone sees per-player harvests, by
-    name), <strong>sanctions</strong> (pay 1 point to burn 3 from a named player), a <strong>posted quota</strong>
-    (one line of institutional text, authored by the environment designer — never by players), and
-    <strong>chat</strong> (one signed public message per player per round).</p>
+    <p>We test how behavior varies with four features of the society, each independently switchable: a
+    <strong>ledger</strong> (everyone sees per-player harvests, by name), <strong>sanctions</strong> (pay 1 point to
+    burn 3 from a named player), a <strong>posted quota</strong> (one line of institutional text, authored by the
+    environment designer — never by players), and <strong>chat</strong> (one signed public message per player per
+    round).</p>
   </div>
 </section>
 
 <section>
   <div class="col">
     <div class="kicker">The experiment</div>
-    <h2>Four institutional designs, four capability tiers</h2>
-    <p>Each seat is one model call per round — full rules in the system prompt, including the regrowth formula, plus
-    <em>"your goal is to maximize your own final score."</em> No steering beyond the rules. We ran a 10-episode pilot
-    per condition, then scaled: 250 episodes per condition on Haiku 4.5, 100 on Sonnet 5, 50 on Opus 5, 25 on Fable 5.</p>
+    <h2>Conditions and models</h2>
+    <p>We crossed four conditions with four models — 250 episodes per condition on Haiku 4.5, 100 on Sonnet 5, 50 on
+    Opus 5, 25 on Fable 5. Each seat knows the full rules, including the regrowth formula, and is told to maximize
+    its own final score.</p>
     <div class="tablewrap">
       <table aria-label="Institutional conditions">
         <thead><tr><th>condition</th><th>ledger</th><th>chat</th><th>sanctions</th><th>posted quota</th></tr></thead>
@@ -399,7 +399,7 @@ footer p + p { margin-top: 0.8em; }
 <section>
   <div class="col">
     <div class="kicker">Failure mode № 2 · Sonnet 5</div>
-    <h2>The anchor stops being destiny</h2>
+    <h2>Sonnet 5 corrects the anchor</h2>
     <p>Sonnet 5 societies open with the same doomed demand of 16 that killed every earlier model. Then they do what no
     weaker model managed: <strong>correct</strong>. Mean demand falls to 8 by round 5, parks near zero around round 10
     to let the stock regrow, and settles at a sustainable ~6. With the ledger on, 78/100 survive.</p>
@@ -426,8 +426,7 @@ footer p + p { margin-top: 0.8em; }
     <p>Every one of the 300 opus-5 and fable-5 episodes ends with the stock dead — at 60–89% welfare. Both facts
     matter: these models run the commons well and then deliberately consume it as the horizon closes. A player's score
     is its own harvest; residual stock counts for nobody. Liquidating the meadow in the last rounds is, for a
-    self-interested player who knows the game ends at 30, simply correct play. The weaker models never find this move.
-    The stronger ones time it.</p>
+    self-interested player who knows the game ends at 30, simply correct play. Haiku and Sonnet never find this move; Opus and Fable execute it.</p>
     <p>Fable 5 under the full institutional kit is the cleanest specimen: aggregate demand of exactly 8 for twenty
     rounds — every seat posting the same sentence, round after round — then a coordinated ramp to 22, narrated in the
     language of sustainability as it happens:</p>
@@ -457,7 +456,7 @@ footer p + p { margin-top: 0.8em; }
 <section>
   <div class="col">
     <div class="kicker">The ablation</div>
-    <h2>One sentence was doing all the work</h2>
+    <h2>Unbundling the quota from the sanctions</h2>
     <p>For haiku and sonnet-5, the full institutional kit is a fixed point — 350/350 episodes survive at ~97% of
     optimum with zero variance, and zero sanctions fired. But the kit bundles two mechanisms: the posted quota and the
     threat behind it. We unbundled them at full scale.</p>
@@ -478,8 +477,7 @@ footer p + p { margin-top: 0.8em; }
     every one of 250 wrong-norm societies died on the identical trajectory, welfare variance 0.0. And the quota was
     quietly doing double duty — by producing perfect compliance it left nothing to punish; hand the same population
     the weapon without the standard and they use it, at a net loss.</p>
-    <p>Institutional text, for these societies, is an amplifier with no opinion about whether the number it amplifies
-    is right.</p>
+    <p>These societies obey posted text; they do not evaluate it.</p>
   </div>
 </section>
 
@@ -511,7 +509,7 @@ footer p + p { margin-top: 0.8em; }
       <div class="rung">
         <div class="model" style="color:var(--clay)">opus-5</div>
         <div>
-          <div class="fail">Fails on terminal incentives — loudly</div>
+          <div class="fail">Renegotiates, punishes, collapses</div>
           <div class="fix">Renegotiates the quota from round 2, starts a sanction war (278 fired, 5.6/episode), and
           ends up <b>worse off under institutions (60%) than under none (73%)</b>. Best condition: anonymity. Nothing
           in the grid keeps its meadow alive.</div>
@@ -520,7 +518,7 @@ footer p + p { margin-top: 0.8em; }
       <div class="rung">
         <div class="model" style="color:var(--violet)">fable-5</div>
         <div>
-          <div class="fail">Fails on terminal incentives — punctually</div>
+          <div class="fail">Complies, then liquidates on schedule</div>
           <div class="fix">Twenty rounds of perfect quota compliance, then a scheduled, coordinated liquidation
           narrated as sustainability. Highest non-surviving welfare in the grid (88.5%): the defection is
           <b>efficient</b>, timed to lose only the final rounds' regrowth.</div>
@@ -533,10 +531,10 @@ footer p + p { margin-top: 0.8em; }
       <div class="fact"><div class="n">0</div><div class="l">sanctions fired by haiku &amp; sonnet-5 in 1,400 bundled-institution episodes</div></div>
       <div class="fact"><div class="n">0.0</div><div class="l">welfare variance under a posted quota — right <em>or</em> wrong</div></div>
     </div>
-    <p>The generalization we'd defend: <strong>which institutions help depends on which failure the population actually
-    has</strong> — epistemic at low capability, incentive at high — and no single design in our grid served both.
-    Measuring the failure mode first, in an environment where the optimum is known, is the step that transfers to
-    agent teams, agent markets, and every other place LLM societies are about to be assembled.</p>
+    <p>The generalization we'd defend: <strong>which institutions help depends on which failure the population
+    actually has</strong> — epistemic at low capability, incentive at high — and no single design in our grid served
+    both. Anyone assembling an LLM society would do well to measure its failure mode before choosing institutions
+    for it.</p>
   </div>
 </section>
 
