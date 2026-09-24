@@ -34,6 +34,27 @@ and a mixed haiku+sonnet population inherits the *most confident* seat's error, 
   see [meadow-rs/README.md](meadow-rs/README.md).
 - `docs/blog-post.md` — the long-form write-up.
 
+## Train locally
+
+`tools/training_bridge.py` exposes the certification game and all four maintained variants through the shared
+Coworld JSONL training protocol. It runs the same pure engine, player observation, action parser, and score
+calculation as the hosted game. The text mode uses the game's model prompt and accepts the full harvest,
+sanction, and public chat action for Metta post-training.
+
+Choice mode supplies 34 numeric values and two independent action fields: harvest `0..3` and an optional
+sanction target. It supports Metta reinforcement learning and PufferLib. The anonymous variant has no public
+per-player ledger in either its semantic view or numeric values. The game exposes stock directly to players;
+the bridge uses that public stock and never reads a hidden engine field for its decisions.
+
+```bash
+PYTHONPATH=src python3 -m pytest tests/test_training_bridge.py -q
+PYTHONPATH=src python3 tools/training_bridge.py --variant certification --mode choice
+```
+
+The bridge reads one JSON object per line. Start with
+`{"kind":"reset","seed":"example","players":8}`; each decision carries the `decision_id` for a `step`
+command. `--rounds N` fixes a shorter curriculum. A terminal message reports the game's per-seat scores.
+
 ## Run it
 
 The engine is dependency-light (`pip install -r requirements.txt`); the containerized path needs Docker and the
