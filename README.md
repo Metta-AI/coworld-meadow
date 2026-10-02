@@ -87,3 +87,5 @@ role contracts.
 Developed in the [Metta-AI/metta](https://github.com/Metta-AI/metta) monorepo as
 `packages/coworld/src/coworld/examples/meadow`; this repository is the public home of the game and its results. The
 LLM sweep (60 episodes, 14,400 model calls) ran 2026-08-14 on claude-haiku-4.5 and claude-sonnet-4.5 via AWS Bedrock.
+
+Hosted language players use `COWORLD_LLM_ENDPOINT` and canonical `COWORLD_LLM_MODEL`, with each request attributed to its observed seat. Upload prompt policies with Coworld 0.1.56 or newer and `--use-llm`; local sweeps can still use direct provider credentials.
