@@ -101,7 +101,8 @@ for mode in ["accepted", "greedy", "invalid", "throttled", "deadline"]:
                 if process.poll() is None:
                     process.terminate()
                     process.wait(timeout=5)
-            for log in logs: log.close()
+            for log in logs:
+                log.close()
             native.shutdown()
             native.server_close()
     events = [json.loads(line) for line in (folder / "trajectory.jsonl").read_text().splitlines()]
