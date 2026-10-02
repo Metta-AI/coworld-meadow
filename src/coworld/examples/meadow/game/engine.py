@@ -23,6 +23,7 @@ class MeadowConfig(BaseModel):
     """Engine-facing configuration (game_config minus runner-owned fields)."""
 
     num_players: int = Field(ge=2, le=MAX_PLAYERS)
+    seed: int = Field(default=0, ge=0)
     rounds: int = Field(default=60, ge=1, le=500)
     stock_start: float = Field(default=60.0, ge=0)
     stock_capacity: float = Field(default=100.0, gt=0)
@@ -232,6 +233,7 @@ def observation(
         "sanction_cost": config.sanction_cost,
         "sanction_burn": config.sanction_burn,
         "chat_enabled": config.chat_enabled,
+        "chat_max_chars": config.chat_max_chars,
         "norm_text": config.norm_text,
         "score": round(state.scores[slot], 2),
         "your_last_harvest": round(last.harvests[slot], 2) if last else None,

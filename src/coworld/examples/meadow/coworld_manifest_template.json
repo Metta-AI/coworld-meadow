@@ -18,6 +18,7 @@
       "additionalProperties": false,
       "required": ["tokens", "players", "rounds"],
       "properties": {
+        "seed": {"type": "integer", "minimum": 0, "default": 0, "description": "Private corpus family identifier; rules are deterministic."},
         "tokens": {
           "type": "array",
           "minItems": 2,

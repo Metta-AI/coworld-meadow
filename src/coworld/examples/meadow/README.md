@@ -33,8 +33,8 @@ The bundled variants `default`, `anonymous`, and `institutions` cover the main g
   when every connected player has submitted or `round_seconds` elapses; missing players pass.
 - **players** — scripted baselines (`sustainable`, `greedy`, `reciprocator`, `deterrable`, `enforcer`, `random`) and
   an `llm` seat (`player/policies.py`). The LLM seat follows
-  [BEDROCK.md](https://github.com/Metta-AI/coworld/blob/main/src/coworld/docs/BEDROCK.md): Bedrock sidecar + InvokeModel in hosted episodes;
-  `COWORLD_MEADOW_MODEL` picks the model and `COWORLD_MEADOW_PROMPT` injects standing orders.
+  Native Messages through `COWORLD_LLM_ENDPOINT`; `COWORLD_LLM_MODEL` chooses the model.
+  `COWORLD_MEADOW_PROMPT` injects private standing orders.
 - **grader** — the social planner's perspective (`grader/meadow_grader.py`): group welfare as a fraction of the exact
   dynamic-programming optimum, plus survival, collapse round, synchrony (conformity), and harvest Gini.
 

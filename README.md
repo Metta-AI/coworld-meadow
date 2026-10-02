@@ -73,7 +73,7 @@ coworld build --project src/coworld/examples/meadow --version 0.1.0
 coworld play src/coworld/examples/meadow/dist/coworld_manifest.json
 coworld certify src/coworld/examples/meadow/dist/coworld_manifest.json
 
-# LLM-seat sweeps (needs AWS Bedrock InvokeModel credentials, or ANTHROPIC_API_KEY)
+# LLM-seat sweeps require COWORLD_LLM_ENDPOINT and optional COWORLD_LLM_MODEL
 PYTHONPATH=src python experiments/run_llm_experiments.py --conditions open-meadow --episodes 1 --rounds 5
 ```
 
@@ -89,3 +89,17 @@ Developed in the [Metta-AI/metta](https://github.com/Metta-AI/metta) monorepo as
 LLM sweep (60 episodes, 14,400 model calls) ran 2026-08-14 on claude-haiku-4.5 and claude-sonnet-4.5 via AWS Bedrock.
 
 Hosted language players use `COWORLD_LLM_ENDPOINT` and canonical `COWORLD_LLM_MODEL`, with each request attributed to its observed seat. Upload prompt policies with Coworld 0.1.56 or newer and `--use-llm`; local sweeps can still use direct provider credentials.
+
+## Private training episodes
+
+The native player uses the Coworld Messages sidecar. Set `COWORLD_LLM_ENDPOINT`, `COWORLD_LLM_MODEL`, and explicit decoding controls (`COWORLD_LLM_TEMPERATURE`, `COWORLD_LLM_MAX_TOKENS`). The same system renderer, operator prompt, JSON parser, and engine normalization drive hosted and language training. Candidate choice mode is a separate objective.
+
+Player replies contain their round and typed action envelope. Late replies cannot advance the next round. Private progress frames retain started, failed, and late native attempts; the game owns acceptance and executed actions. External teacher/human assertions become unknown. Public replay contains game effects only.
+
+Set `COGAME_SAVE_TRAJECTORY_URI` together with `COWORLD_EPISODE_ID`, `COWORLD_GAME_VERSION`, and full `COWORLD_SOURCE_REVISION` to capture complete private JSONL. Local files are exclusively created with permissions600 in directories700. Export at least ten whole games per variant from a committed checkout:
+
+```sh
+PYTHONPATH=src python tools/export_posttrain.py /tmp/meadow-private-teachers --variant institutions --games 10
+```
+
+The exporter produces canonical private trajectories and pinned teacher configurations. The shared Coworld qualifier and Metta importer select policy/seat targets and own seed-family dataset splitting. Whole episodes and outcomes stay available for independent label review. Production training releases require deployment and verification of the reviewed shared runtime; local fixtures do not establish trained game strength.

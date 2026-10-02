@@ -13,7 +13,7 @@ from coworld.examples.meadow.game.engine import (
     welfare,
 )
 from coworld.examples.meadow.headless import build_policies, default_player_names, run_episode
-from coworld.examples.meadow.player.policies import EnforcerPolicy, LlmPolicy, make_policy
+from coworld.examples.meadow.player.policies import EnforcerPolicy, LlmPolicy, make_policy, system_prompt
 
 
 def config(**overrides) -> MeadowConfig:
@@ -152,8 +152,7 @@ def test_deterrable_greedy_responds_to_sanctions() -> None:
 def test_llm_policy_parses_replies_and_builds_prompt(monkeypatch) -> None:
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("COWORLD_LLM_ENDPOINT", raising=False)
-    policy = LlmPolicy()
-    assert policy.backend == "bedrock"
+    policy = LlmPolicy
     assert policy._parse('{"harvest": 2}') == {"harvest": 2}
     assert policy._parse('Sure! {"harvest": 1, "message": "hi"} done')["harvest"] == 1
     assert policy._parse("no json here") is None
@@ -162,7 +161,7 @@ def test_llm_policy_parses_replies_and_builds_prompt(monkeypatch) -> None:
     cfg = config(sanctions_enabled=True, norm_text="sustainable: 1 each")
     state = new_state(cfg)
     obs = observation(state, cfg, 0, default_player_names(8), round_seconds=10.0)
-    prompt = policy._build_system_prompt(obs)
+    prompt = system_prompt(obs)
     assert "sanction" in prompt and "sustainable: 1 each" in prompt
     quiet_obs = observation(state, config(), 0, default_player_names(8), round_seconds=10.0)
-    assert "sanction" not in LlmPolicy()._build_system_prompt(quiet_obs)
+    assert "sanction" not in system_prompt(quiet_obs)

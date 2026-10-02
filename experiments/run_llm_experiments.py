@@ -3,7 +3,7 @@
 Runs in-process episodes with LLM policies (no containers), one thread per
 seat so a round's eight model calls happen concurrently — the same timing
 shape as hosted episodes. Requires model access: either AWS credentials with
-Bedrock InvokeModel (the default backend) or `ANTHROPIC_API_KEY` for the
+native Coworld Messages through `COWORLD_LLM_ENDPOINT` for the
 direct API. Model ids must match the backend's format
 (`us.anthropic.claude-...-v1:0` vs `claude-...`).
 

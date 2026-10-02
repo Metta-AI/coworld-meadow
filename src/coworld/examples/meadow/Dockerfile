@@ -1,9 +1,8 @@
 FROM docker.io/library/python:3.12-slim
 
-# numpy backs the grader's exact-optimum DP; boto3 backs the LLM player's
-# Bedrock sidecar path (see BEDROCK.md).
+# numpy backs the grader's exact-optimum dynamic program. Native inference uses HTTP.
 RUN pip install --no-cache-dir fastapi==0.115.5 uvicorn[standard]==0.34.2 websockets==15.0.1 \
-    pydantic==2.11.5 numpy==2.2.6 boto3==1.38.27
+    pydantic==2.11.5 numpy==2.2.6
 
 ENV PYTHONPATH=/app
 WORKDIR /app

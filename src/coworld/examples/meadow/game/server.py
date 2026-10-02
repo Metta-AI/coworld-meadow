@@ -32,7 +32,6 @@ from coworld.examples.meadow.game.engine import (
     RoundAction,
     new_state,
     observation,
-    parse_action,
     step,
     welfare,
 )
@@ -41,7 +40,19 @@ from coworld.examples.meadow.shared.artifact_io import (
     read_data,
     write_data,
 )
+from coworld.examples.meadow.shared.decision import (
+    AttemptProgress,
+    PlayerDecision,
+    apply_player_decision,
+    executed_action,
+    parse_reply,
+)
 from coworld.examples.meadow.shared.log_shipper import get_logger
+from coworld.examples.meadow.shared.trajectory import (
+    Attempt,
+    DecisionRecord,
+    Trajectory,
+)
 
 CLIENT_DIR = Path(__file__).parent / "client"
 logger = get_logger("meadow.game")
@@ -86,13 +97,47 @@ class GameSession:
     def __init__(self) -> None:
         self.engine: MeadowState = new_state(CONFIG)
         self.players: dict[int, WebSocket] = {}
-        self.pending: dict[int, RoundAction] = {}
+        self.pending: dict[int, PlayerDecision] = {}
         self.frames: list[dict[str, Any]] = []
         self.started = False
         self.done = False
         self.paused = False
         self.round_seconds = ROUND_SECONDS
         self.global_viewers = 0
+        self.progress: dict[tuple[int, int], list[Attempt]] = {}
+        self.trajectory = (
+            Trajectory(episode_id=os.environ["COWORLD_EPISODE_ID"],
+                game_version=os.environ["COWORLD_GAME_VERSION"],
+                source_revision=os.environ["COWORLD_SOURCE_REVISION"],
+                image_digest=os.environ.get("COWORLD_IMAGE_DIGEST"),
+                seed_family="meadow-" + str(CONFIG.seed))
+            if os.environ.get("COGAME_SAVE_TRAJECTORY_URI") else None
+        )
+
+
+    def capture_attempt(self, slot: int, progress: AttemptProgress) -> None:
+        """Preserve known started and late attempts without changing an executed decision."""
+        attempt = progress.attempt.model_copy(deep=True)
+        attempt.accepted = False
+        if attempt.origin in {"teacher", "human"}:
+            attempt.origin = "unknown"
+        if attempt.response is not None:
+            parsed = parse_reply(attempt.response, slot, CONFIG)
+            attempt.parsed_action = parsed.model_dump() if parsed is not None else None
+        attempts = self.progress.setdefault((progress.round, slot), [])
+        if self.trajectory is not None:
+            for record in self.trajectory.records:
+                if isinstance(record, DecisionRecord) and record.decision_id == f"round-{progress.round}-seat-{slot}":
+                    if record.selected_attempt_id == attempt.attempt_id:
+                        return
+                    attempts = record.attempts
+                    if record.action_status == "fallback":
+                        attempt.rejection_reason = "completed after round deadline" if attempt.latency_ms is not None else "native call in progress at round deadline"
+        existing = next((index for index, item in enumerate(attempts) if item.attempt_id == attempt.attempt_id), None)
+        if existing is None:
+            attempts.append(attempt)
+        else:
+            attempts[existing] = attempt
 
 
 session = GameSession()
@@ -201,8 +246,13 @@ async def player(websocket: WebSocket) -> None:
 
     try:
         async for message in websocket.iter_json():
+            if message["type"] == "attempt":
+                session.capture_attempt(slot, AttemptProgress.model_validate(message))
+                continue
             if not session.done and session.engine.round < CONFIG.rounds:
-                session.pending[slot] = parse_action(message, slot, CONFIG)
+                decision = PlayerDecision.model_validate(message)
+                if decision.round == session.engine.round:
+                    session.pending[slot] = apply_player_decision(decision, slot, CONFIG)
     finally:
         if session.players.get(slot) is websocket:
             del session.players[slot]
@@ -230,13 +280,45 @@ async def _play_game() -> None:
                 break
             await asyncio.sleep(0.05)
 
-        actions = [session.pending.get(slot, RoundAction()) for slot in range(CONFIG.num_players)]
+        decisions = [session.pending.get(slot, PlayerDecision(round=session.engine.round,
+            action=RoundAction(), attempts=session.progress.get((session.engine.round, slot), []),
+            fallback_origin="missing-or-late-player")) for slot in range(CONFIG.num_players)]
+        views = [_player_observation(slot) for slot in range(CONFIG.num_players)]
+        actions = [decision.action for decision in decisions]
         session.pending.clear()
         record = step(session.engine, actions, CONFIG)
+        if session.trajectory is not None:
+            for slot, decision in enumerate(decisions):
+                actual = executed_action(record, slot)
+                selected = next((attempt for attempt in decision.attempts
+                    if attempt.attempt_id == decision.selected_attempt_id), None)
+                session.trajectory.record(decision_id=f"round-{record.round}-seat-{slot}",
+                    seat=slot, observation=views[slot], prompt=selected.prompt if selected else None,
+                    attempts=decision.attempts, executed_action=actual.model_dump(),
+                    fallback_origin=decision.fallback_origin, terminal=session.engine.round == CONFIG.rounds)
         session.frames.append({**record.model_dump(), "player_names": PLAYER_NAMES})
         await _broadcast_observations()
 
     results = _results()
+    if session.trajectory is not None:
+        drain_deadline = loop.time() + session.round_seconds
+        while loop.time() < drain_deadline and any(
+            attempt.latency_ms is None for record in session.trajectory.records
+            if isinstance(record, DecisionRecord) for attempt in record.attempts
+        ):
+            await asyncio.sleep(0.05)
+        session.trajectory.finish(outcome=results,
+            participant_outcomes={str(slot): {"score": round(score, 3)} for slot, score in enumerate(session.engine.scores)},
+            completed=session.engine.round == CONFIG.rounds)
+        uri = os.environ["COGAME_SAVE_TRAJECTORY_URI"]
+        if uri.startswith("file://"):
+            from urllib.parse import unquote, urlparse
+
+            await asyncio.to_thread(session.trajectory.write, Path(unquote(urlparse(uri).path)))
+        else:
+            body = "\n".join(record.model_dump_json() for record in session.trajectory.records) + "\n"
+            await asyncio.to_thread(write_data, uri, body, content_type="application/x-ndjson",
+                http_method=artifact_method("COGAME_SAVE_TRAJECTORY_METHOD"))
     logger.info("game finished after %d rounds, scores=%s", session.engine.round, results["scores"])
     # Artifact writes are blocking HTTP; off the event loop so websocket pings
     # (the hosted certifier probes /global right around game end) still answer.

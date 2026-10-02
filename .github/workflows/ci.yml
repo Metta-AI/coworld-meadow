@@ -1,0 +1,24 @@
+name: Native training evidence
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  training:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q
+      - name: Actual native player and engine episodes
+        run: python tools/test_native_trajectory.py "$GITHUB_SHA" "$RUNNER_TEMP/meadow-native"
+      - name: Whole production teacher corpus
+        run: python tools/export_posttrain.py "$RUNNER_TEMP/meadow-teachers" --variant institutions --games 10

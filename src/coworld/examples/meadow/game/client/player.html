@@ -285,7 +285,7 @@
     const action = { harvest }
     if (observation.sanctions_enabled && sanctionEl.value !== '') action.sanction = Number(sanctionEl.value)
     if (observation.chat_enabled && messageEl.value.trim()) action.message = messageEl.value.trim()
-    socket.send(JSON.stringify(action))
+    socket.send(JSON.stringify({type: "action", round: observation.round, action}))
     messageEl.value = ''
     submitEl.textContent = `Submitted ${action.harvest} — waiting for round to settle…`
     setTimeout(() => (submitEl.textContent = 'Submit action'), 1500)
