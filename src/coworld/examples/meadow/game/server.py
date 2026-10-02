@@ -30,10 +30,10 @@ from coworld.examples.meadow.game.engine import (
     MeadowConfig,
     MeadowState,
     RoundAction,
+    episode_results,
     new_state,
     observation,
     step,
-    welfare,
 )
 from coworld.examples.meadow.shared.artifact_io import (
     artifact_method,
@@ -299,7 +299,7 @@ async def _play_game() -> None:
         session.frames.append({**record.model_dump(), "player_names": PLAYER_NAMES})
         await _broadcast_observations()
 
-    results = _results()
+    results = episode_results(session.engine).model_dump(mode="json")
     if session.trajectory is not None:
         drain_deadline = loop.time() + session.round_seconds
         while loop.time() < drain_deadline and any(
@@ -356,18 +356,6 @@ async def _broadcast_observations() -> None:
 
 def _player_observation(slot: int) -> dict[str, Any]:
     return observation(session.engine, CONFIG, slot, PLAYER_NAMES, session.round_seconds)
-
-
-def _results() -> dict[str, object]:
-    engine = session.engine
-    return {
-        "scores": [round(score, 3) for score in engine.scores],
-        "total_harvested": [round(total, 3) for total in engine.total_harvested],
-        "welfare": round(welfare(engine), 3),
-        "final_stock": round(engine.stock, 3),
-        "collapse_round": engine.collapse_round,
-        "rounds": engine.round,
-    }
 
 
 def _replay_payload(results: dict[str, object]) -> dict[str, Any]:

@@ -284,6 +284,7 @@ class LlmPolicy:
                         evidence.prompt_token_ids = parsed.sampling_evidence.prompt_token_ids
                         evidence.sampled_token_ids = parsed.sampling_evidence.completion_token_ids
                         evidence.behavior_logprobs = parsed.sampling_evidence.behavior_log_probs
+                        evidence.stop_reason = parsed.sampling_evidence.stop_reason
                     text = "".join(block.text for block in parsed.content if block.type == "text")
                     evidence.response = text
                     if parsed.stop_reason == "refusal":

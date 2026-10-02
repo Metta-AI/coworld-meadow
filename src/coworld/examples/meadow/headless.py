@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from coworld.examples.meadow.game.engine import (
     MeadowConfig,
     MeadowState,
+    episode_results,
     new_state,
     observation,
     step,
@@ -70,9 +71,7 @@ def run_episode(
                         attempts=decision.attempts, executed_action=executed_action(record, slot).model_dump(),
                         fallback_origin=decision.fallback_origin, terminal=state.round == config.rounds)
     if trajectory is not None:
-        trajectory.finish(outcome={"scores": [round(score, 3) for score in state.scores],
-            "total_harvested": [round(total, 3) for total in state.total_harvested],
-            "final_stock": round(state.stock, 3), "collapse_round": state.collapse_round, "rounds": state.round},
+        trajectory.finish(outcome=episode_results(state).model_dump(mode="json"),
             participant_outcomes={str(slot): {"score": round(score, 3)} for slot, score in enumerate(state.scores)},
             completed=state.round == config.rounds)
     return state

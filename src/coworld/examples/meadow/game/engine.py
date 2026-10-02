@@ -84,6 +84,23 @@ class MeadowState(BaseModel):
     history: list[RoundRecord] = Field(default_factory=list)
 
 
+class EpisodeResults(BaseModel):
+    scores: list[float]
+    total_harvested: list[float]
+    welfare: float
+    final_stock: float
+    collapse_round: int | None
+    rounds: int
+
+
+def episode_results(state: MeadowState) -> EpisodeResults:
+    """Hosted and headless episodes publish the same complete engine outcomes."""
+    return EpisodeResults(scores=[round(score, 3) for score in state.scores],
+        total_harvested=[round(total, 3) for total in state.total_harvested],
+        welfare=round(welfare(state), 3), final_stock=round(state.stock, 3),
+        collapse_round=state.collapse_round, rounds=state.round)
+
+
 def new_state(config: MeadowConfig) -> MeadowState:
     n = config.num_players
     return MeadowState(

@@ -3,10 +3,17 @@ import json
 
 import pytest
 
-from coworld.examples.meadow.game.engine import MeadowConfig, RoundAction
+from coworld.examples.meadow.game.engine import (
+    MeadowConfig,
+    RoundAction,
+    new_state,
+    observation,
+    step,
+)
 from coworld.examples.meadow.shared.decision import (
     PlayerDecision,
     apply_player_decision,
+    decision_prompt,
 )
 from coworld.examples.meadow.shared.trajectory import Attempt, Trajectory
 
@@ -50,3 +57,17 @@ def test_private_complete_writer_preserves_engine_action_and_exclusive_file(tmp_
     assert json.loads(path.read_text().splitlines()[-1])["status"] == "completed"
     with pytest.raises(FileExistsError):
         trajectory.write(path)
+
+
+def test_anonymous_prompt_does_not_expose_other_seat_identity_or_private_accounts():
+    config = MeadowConfig(num_players=3, ledger_public=False)
+    original = new_state(config)
+    step(original, [RoundAction(harvest=1), RoundAction(harvest=2), RoundAction(harvest=3)], config)
+    changed = original.model_copy(deep=True)
+    changed.scores[1:] = [999, -999]
+    changed.total_harvested[1:] = [888, 777]
+    changed.history[-1].harvests[1:] = list(reversed(changed.history[-1].harvests[1:]))
+    first = observation(original, config, 0, ["own", "hidden-one", "hidden-two"], 2)
+    second = observation(changed, config, 0, ["own", "different-one", "different-two"], 2)
+    assert first == second
+    assert decision_prompt(first, "operator") == decision_prompt(second, "operator")
