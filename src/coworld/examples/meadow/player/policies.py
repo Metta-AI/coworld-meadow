@@ -153,8 +153,7 @@ class LlmPolicy:
     Env vars:
     - `COWORLD_MEADOW_MODEL`: model id (Bedrock or Anthropic form, per backend).
     - `COWORLD_MEADOW_PROMPT`: optional standing-orders strategy text.
-    - `AWS_ENDPOINT_URL_BEDROCK_RUNTIME`: set by the hosted runner sidecar;
-      its presence selects the Bedrock InvokeModel backend (see BEDROCK.md).
+    - `COWORLD_LLM_ENDPOINT` and `COWORLD_LLM_MODEL`: hosted native Messages.
     - `ANTHROPIC_API_KEY` (+ optional `ANTHROPIC_BASE_URL`): local direct API.
 
     Throttling is retried within the round; a round that still fails becomes a
@@ -168,20 +167,25 @@ class LlmPolicy:
         self.llm_failures = 0
         self.llm_calls = 0
         self._system_prompt: str | None = None
-        if os.environ.get("AWS_ENDPOINT_URL_BEDROCK_RUNTIME") or not os.environ.get("ANTHROPIC_API_KEY"):
+        if os.environ.get("COWORLD_LLM_ENDPOINT"):
+            self.backend = "sidecar"
+            default_model = "anthropic/claude-haiku-4.5"
+        elif not os.environ.get("ANTHROPIC_API_KEY"):
             self.backend = "bedrock"
             default_model = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
         else:
             self.backend = "anthropic"
             default_model = "claude-haiku-4-5-20251001"
-        self.model = model or os.environ.get("COWORLD_MEADOW_MODEL", default_model)
+        self.model = (os.environ.get("COWORLD_LLM_MODEL", default_model)
+                      if self.backend == "sidecar"
+                      else model or os.environ.get("COWORLD_MEADOW_MODEL", default_model))
         self._bedrock_client = None
 
     def act(self, obs: dict) -> dict:
         if self._system_prompt is None:
             self._system_prompt = self._build_system_prompt(obs)
         payload = {key: value for key, value in obs.items() if key not in ("type", "round_seconds")}
-        raw = self._complete(json.dumps(payload, separators=(",", ":")))
+        raw = self._complete(json.dumps(payload, separators=(",", ":")), obs["slot"])
         if raw is None:
             self.llm_failures += 1
             return {"harvest": 0}
@@ -221,13 +225,13 @@ class LlmPolicy:
             message_field=message_field,
         )
 
-    def _complete(self, user_text: str) -> str | None:
+    def _complete(self, user_text: str, slot: int) -> str | None:
         self.llm_calls += 1
         # Pre-4.6 models (haiku 4.5, sonnet 4.5) narrate their analysis and never reach the JSON
         # unless an assistant prefill forces the reply to be the JSON object itself. 4.6+ models
         # reject prefill outright, emit clean JSON unprompted, and think before the text block —
         # so they need max_tokens headroom for the thinking spend instead.
-        prefill = any(marker in self.model for marker in ("haiku-4-5", "sonnet-4-5"))
+        prefill = any(marker in self.model for marker in ("haiku-4-5", "sonnet-4-5", "haiku-4.5", "sonnet-4.5"))
         messages = [{"role": "user", "content": user_text}]
         if prefill:
             messages.append({"role": "assistant", "content": "{"})
@@ -241,7 +245,7 @@ class LlmPolicy:
             # Thinking shares the max_tokens budget on 4.6+ models; low effort keeps a
             # one-integer harvest decision from burning the budget before the text block.
             body["output_config"] = {"effort": "low"}
-        completion = self._complete_bedrock(body) if self.backend == "bedrock" else self._complete_anthropic(body)
+        completion = self._complete_bedrock(body) if self.backend == "bedrock" else self._complete_messages(body, slot)
         if completion is None:
             return None
         return "{" + completion if prefill else completion
@@ -268,8 +272,9 @@ class LlmPolicy:
                 time.sleep(sleep_seconds)
         return None
 
-    def _complete_anthropic(self, body: dict) -> str | None:
-        base = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com").rstrip("/")
+    def _complete_messages(self, body: dict, slot: int) -> str | None:
+        endpoint = os.environ.get("COWORLD_LLM_ENDPOINT")
+        base = (endpoint or os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com")).rstrip("/")
         request_body = {
             "model": self.model,
             "max_tokens": body["max_tokens"],
@@ -282,7 +287,8 @@ class LlmPolicy:
             headers={
                 "content-type": "application/json",
                 "anthropic-version": "2023-06-01",
-                "x-api-key": os.environ["ANTHROPIC_API_KEY"],
+                "x-api-key": "sidecar" if endpoint else os.environ["ANTHROPIC_API_KEY"],
+                **({"X-Coworld-Player-Slot": str(slot)} if endpoint else {}),
                 "user-agent": "coworld-meadow/0.1",
             },
         )

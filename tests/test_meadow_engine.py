@@ -151,7 +151,7 @@ def test_deterrable_greedy_responds_to_sanctions() -> None:
 
 def test_llm_policy_parses_replies_and_builds_prompt(monkeypatch) -> None:
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.delenv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME", raising=False)
+    monkeypatch.delenv("COWORLD_LLM_ENDPOINT", raising=False)
     policy = LlmPolicy()
     assert policy.backend == "bedrock"
     assert policy._parse('{"harvest": 2}') == {"harvest": 2}
