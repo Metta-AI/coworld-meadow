@@ -71,3 +71,14 @@ def test_anonymous_prompt_does_not_expose_other_seat_identity_or_private_account
     second = observation(changed, config, 0, ["own", "different-one", "different-two"], 2)
     assert first == second
     assert decision_prompt(first, "operator") == decision_prompt(second, "operator")
+
+
+def test_unfinished_native_call_excludes_episode_from_complete_training():
+    trajectory = Trajectory(episode_id="unfinished", game_version="source-fixture",
+        source_revision="a" * 40, image_digest=None, seed_family="meadow-0")
+    started = Attempt(policy="native", prompt=[{"role": "user", "content": "prompt"}])
+    trajectory.record(decision_id="round-0-seat-0", seat=0, observation={}, prompt=None,
+        attempts=[started], executed_action=RoundAction().model_dump(),
+        fallback_origin="missing-or-late-player", terminal=True)
+    trajectory.finish(outcome={"scores": [0, 0]}, participant_outcomes={}, completed=True)
+    assert trajectory.records[-1].status == "truncated"

@@ -94,7 +94,7 @@ Hosted language players use `COWORLD_LLM_ENDPOINT` and canonical `COWORLD_LLM_MO
 
 The native player uses the Coworld Messages sidecar. Set `COWORLD_LLM_ENDPOINT`, `COWORLD_LLM_MODEL`, and explicit decoding controls (`COWORLD_LLM_TEMPERATURE`, `COWORLD_LLM_MAX_TOKENS`). The same system renderer, operator prompt, JSON parser, and engine normalization drive hosted and language training. Candidate choice mode is a separate objective.
 
-Player replies contain their round and typed action envelope. Late replies cannot advance the next round. Private progress frames retain started, failed, and late native attempts; the game owns acceptance and executed actions. External teacher/human assertions become unknown. Public replay contains game effects only.
+Player replies contain their round and typed action envelope. Late replies cannot advance the next round. Private progress frames retain started, failed, and late native attempts; the game owns acceptance and executed actions. External teacher/human assertions become unknown. Public replay contains game effects only. After the final round, a bounded drain retains late call completions. Unfinished native calls mark the private episode truncated, excluding it from complete-episode training.
 
 Set `COGAME_SAVE_TRAJECTORY_URI` together with `COWORLD_EPISODE_ID`, `COWORLD_GAME_VERSION`, and full `COWORLD_SOURCE_REVISION` to capture complete private JSONL. Local files are exclusively created with permissions600 in directories700. Export at least ten whole games per variant from a committed checkout:
 

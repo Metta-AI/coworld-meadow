@@ -117,6 +117,8 @@ class GameSession:
 
     def capture_attempt(self, slot: int, progress: AttemptProgress) -> None:
         """Preserve known started and late attempts without changing an executed decision."""
+        if self.trajectory is not None and self.trajectory.finished:
+            return
         attempt = progress.attempt.model_copy(deep=True)
         attempt.accepted = False
         if attempt.origin in {"teacher", "human"}:

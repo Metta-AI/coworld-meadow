@@ -152,6 +152,11 @@ class Trajectory:
     def finish(self, *, outcome: JsonValue, participant_outcomes: JsonValue, completed: bool) -> None:
         if self.finished:
             raise ValueError("episode has already ended")
+        calls_finished = all(
+            attempt.latency_ms is not None for record in self.records
+            if isinstance(record, DecisionRecord) for attempt in record.attempts
+            if attempt.origin == "model"
+        )
         self.records.append(
             EpisodeRecord(
                 episode_id=self.episode_id,
@@ -159,7 +164,7 @@ class Trajectory:
                 game_version=self.game_version,
                 source_revision=self.source_revision,
                 image_digest=self.image_digest,
-                status="completed" if completed else "truncated",
+                status="completed" if completed and calls_finished else "truncated",
                 outcome=outcome,
                 participant_outcomes=participant_outcomes,
             )
