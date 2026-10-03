@@ -299,7 +299,8 @@ async def _play_game() -> None:
                     attempts=decision.attempts, executed_action=actual.model_dump(),
                     fallback_origin=decision.fallback_origin, terminal=session.engine.round == CONFIG.rounds)
         session.frames.append({**record.model_dump(), "player_names": PLAYER_NAMES})
-        await _broadcast_observations()
+        if session.engine.round < CONFIG.rounds:
+            await _broadcast_observations()
 
     results = episode_results(session.engine).model_dump(mode="json")
     if session.trajectory is not None:
@@ -357,7 +358,10 @@ async def _broadcast_observations() -> None:
 
 
 def _player_observation(slot: int) -> dict[str, Any]:
-    return observation(session.engine, CONFIG, slot, PLAYER_NAMES, session.round_seconds)
+    view = observation(session.engine, CONFIG, slot, PLAYER_NAMES, session.round_seconds)
+    if session.engine.round == CONFIG.rounds:
+        return {**view, "type": "final", "done": True}
+    return view
 
 
 def _replay_payload(results: dict[str, object]) -> dict[str, Any]:
