@@ -23,6 +23,7 @@ class MeadowConfig(BaseModel):
     """Engine-facing configuration (game_config minus runner-owned fields)."""
 
     num_players: int = Field(ge=2, le=MAX_PLAYERS)
+    seed: int = Field(default=0, ge=0)
     rounds: int = Field(default=60, ge=1, le=500)
     stock_start: float = Field(default=60.0, ge=0)
     stock_capacity: float = Field(default=100.0, gt=0)
@@ -81,6 +82,23 @@ class MeadowState(BaseModel):
     sanctions_given: list[int]
     sanctions_received: list[int]
     history: list[RoundRecord] = Field(default_factory=list)
+
+
+class EpisodeResults(BaseModel):
+    scores: list[float]
+    total_harvested: list[float]
+    welfare: float
+    final_stock: float
+    collapse_round: int | None
+    rounds: int
+
+
+def episode_results(state: MeadowState) -> EpisodeResults:
+    """Hosted and headless episodes publish the same complete engine outcomes."""
+    return EpisodeResults(scores=[round(score, 3) for score in state.scores],
+        total_harvested=[round(total, 3) for total in state.total_harvested],
+        welfare=round(welfare(state), 3), final_stock=round(state.stock, 3),
+        collapse_round=state.collapse_round, rounds=state.round)
 
 
 def new_state(config: MeadowConfig) -> MeadowState:
@@ -232,6 +250,7 @@ def observation(
         "sanction_cost": config.sanction_cost,
         "sanction_burn": config.sanction_burn,
         "chat_enabled": config.chat_enabled,
+        "chat_max_chars": config.chat_max_chars,
         "norm_text": config.norm_text,
         "score": round(state.scores[slot], 2),
         "your_last_harvest": round(last.harvests[slot], 2) if last else None,

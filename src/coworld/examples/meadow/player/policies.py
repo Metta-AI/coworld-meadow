@@ -7,10 +7,8 @@ experiment driver, so lab results and hosted episodes share one behavior
 implementation.
 
 Scripted policies double as certification fixtures and experimental controls.
-The LLM policy follows BEDROCK.md: inside a hosted episode boto3 picks up the
-`AWS_ENDPOINT_URL_BEDROCK_RUNTIME` sidecar endpoint automatically and must use
-InvokeModel; locally it can fall back to the direct Anthropic API when
-`ANTHROPIC_API_KEY` is set.
+The language policy uses the native Coworld Messages sidecar and captures private
+request-local inference evidence. Scripted policies remain deterministic controls.
 """
 
 from __future__ import annotations
@@ -20,8 +18,16 @@ import logging
 import os
 import random
 import time
-from urllib.error import HTTPError
+from collections.abc import Callable
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from uuid import UUID
+
+from pydantic import BaseModel, Field, ValidationError
+
+from coworld.examples.meadow.game.engine import MeadowConfig, RoundAction, parse_action
+from coworld.examples.meadow.shared.decision import PlayerDecision, decision_prompt
+from coworld.examples.meadow.shared.trajectory import Attempt
 
 logger = logging.getLogger("meadow.policies")
 
@@ -147,166 +153,164 @@ LLM_SANCTION_RULES = (
 LLM_THROTTLE_SLEEPS = (1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 60.0)
 
 
+def system_prompt(obs: dict, strategy: str = "") -> str:
+    sanction_rules = ""
+    sanction_field = ""
+    if obs["sanctions_enabled"]:
+        sanction_rules = LLM_SANCTION_RULES.format(
+            sanction_cost=obs["sanction_cost"], sanction_burn=obs["sanction_burn"]
+        )
+        sanction_field = ', "sanction": <player slot int or null>'
+    message_field = ', "message": "<optional chat, may be empty>"' if obs["chat_enabled"] else ""
+    norm_line = f"\n- Posted notice: {obs['norm_text']}" if obs["norm_text"] else ""
+    strategy = f"\n\nStanding orders from your operator:\n{strategy}" if strategy else ""
+    ledger = obs.get("ledger")
+    name = ledger[obs["slot"]]["name"] if ledger else f"P{obs['slot']}"
+    return LLM_SYSTEM_PROMPT.format(
+        name=name,
+        slot=obs["slot"],
+        num_players=obs["num_players"],
+        stock_capacity=obs["stock_capacity"],
+        regrowth_rate=obs["regrowth_rate"],
+        collapse_threshold=obs["collapse_threshold"],
+        max_harvest=obs["max_harvest"],
+        rounds=obs["rounds"],
+        sanction_rules=sanction_rules,
+        norm_line=norm_line,
+        strategy=strategy,
+        sanction_field=sanction_field,
+        message_field=message_field,
+    )
+
+
+
+class NativeText(BaseModel):
+    type: str
+    text: str = ""
+
+
+class NativeUsage(BaseModel):
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+
+
+class NativeSampling(BaseModel):
+    prompt_token_ids: list[int]
+    completion_token_ids: list[int]
+    behavior_log_probs: list[float] | None
+    stop_reason: str
+
+
+class NativeResponse(BaseModel):
+    model: str = Field(min_length=1)
+    content: list[NativeText]
+    stop_reason: str
+    usage: NativeUsage
+    sampling_evidence: NativeSampling | None = None
+
+
 class LlmPolicy:
-    """An LLM seat. Model and standing orders come from the environment.
-
-    Env vars:
-    - `COWORLD_MEADOW_MODEL`: model id (Bedrock or Anthropic form, per backend).
-    - `COWORLD_MEADOW_PROMPT`: optional standing-orders strategy text.
-    - `COWORLD_LLM_ENDPOINT` and `COWORLD_LLM_MODEL`: hosted native Messages.
-    - `ANTHROPIC_API_KEY` (+ optional `ANTHROPIC_BASE_URL`): local direct API.
-
-    Throttling is retried within the round; a round that still fails becomes a
-    pass (harvest 0) and is counted in `llm_failures`. Auth/validation errors
-    raise immediately so a misconfigured player fails loudly at round 0 instead
-    of silently playing as a non-LLM baseline.
-    """
+    """Native sidecar inference with one private attempt per actual HTTP request."""
 
     def __init__(self, seed: int = 0, model: str | None = None, strategy: str | None = None) -> None:
         self.strategy = strategy if strategy is not None else os.environ.get("COWORLD_MEADOW_PROMPT", "")
+        self.model = model or os.environ.get("COWORLD_LLM_MODEL", "anthropic/claude-haiku-4.5")
+        self.endpoint = os.environ["COWORLD_LLM_ENDPOINT"].rstrip("/")
+        self.temperature = float(os.environ.get("COWORLD_LLM_TEMPERATURE", "1"))
+        self.max_tokens = int(os.environ.get("COWORLD_LLM_MAX_TOKENS", "4096"))
+        if not 0 <= self.temperature <= 1 or self.max_tokens <= 0:
+            raise ValueError("native decoder requires finite temperature0..1 and positive token budget")
         self.llm_failures = 0
         self.llm_calls = 0
-        self._system_prompt: str | None = None
-        if os.environ.get("COWORLD_LLM_ENDPOINT"):
-            self.backend = "sidecar"
-            default_model = "anthropic/claude-haiku-4.5"
-        elif not os.environ.get("ANTHROPIC_API_KEY"):
-            self.backend = "bedrock"
-            default_model = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+
+    def act(self, obs: dict, on_attempt: Callable[[Attempt], None] = lambda _attempt: None) -> PlayerDecision:
+        prompt = decision_prompt(obs, self.strategy)
+        config = MeadowConfig.model_validate({**obs, "num_players": obs["num_players"]})
+        attempts: list[Attempt] = []
+        deadline = time.monotonic() + float(obs["round_seconds"])
+        raw = self._complete_messages(prompt, obs["slot"], attempts, deadline, on_attempt)
+        parsed_action = self._parse(raw) if raw is not None else None
+        action = parse_action(parsed_action, obs["slot"], config) if parsed_action is not None else None
+        selected = None
+        if action is not None:
+            attempts[-1].parsed_action = action.model_dump()
+            attempts[-1].accepted = True
+            attempts[-1].rejection_reason = None
+            selected = attempts[-1].attempt_id
         else:
-            self.backend = "anthropic"
-            default_model = "claude-haiku-4-5-20251001"
-        self.model = (os.environ.get("COWORLD_LLM_MODEL", default_model)
-                      if self.backend == "sidecar"
-                      else model or os.environ.get("COWORLD_MEADOW_MODEL", default_model))
-        self._bedrock_client = None
-
-    def act(self, obs: dict) -> dict:
-        if self._system_prompt is None:
-            self._system_prompt = self._build_system_prompt(obs)
-        payload = {key: value for key, value in obs.items() if key not in ("type", "round_seconds")}
-        raw = self._complete(json.dumps(payload, separators=(",", ":")), obs["slot"])
-        if raw is None:
             self.llm_failures += 1
-            return {"harvest": 0}
-        action = self._parse(raw)
-        if action is None:
-            self.llm_failures += 1
-            logger.warning("unparseable model reply, passing: %r", raw[:200])
-            return {"harvest": 0}
-        return action
+            if attempts and raw is not None:
+                attempts[-1].rejection_reason = "invalid native action reply"
+        return PlayerDecision(round=obs["round"], action=action if action is not None else RoundAction(),
+            attempts=attempts, selected_attempt_id=selected,
+            fallback_origin=None if selected is not None else "native-call-or-parser-failure")
 
-    def _build_system_prompt(self, obs: dict) -> str:
-        sanction_rules = ""
-        sanction_field = ""
-        if obs["sanctions_enabled"]:
-            sanction_rules = LLM_SANCTION_RULES.format(
-                sanction_cost=obs["sanction_cost"], sanction_burn=obs["sanction_burn"]
-            )
-            sanction_field = ', "sanction": <player slot int or null>'
-        message_field = ', "message": "<optional chat, may be empty>"' if obs["chat_enabled"] else ""
-        norm_line = f"\n- Posted notice: {obs['norm_text']}" if obs["norm_text"] else ""
-        strategy = f"\n\nStanding orders from your operator:\n{self.strategy}" if self.strategy else ""
-        ledger = obs.get("ledger")
-        name = ledger[obs["slot"]]["name"] if ledger else f"P{obs['slot']}"
-        return LLM_SYSTEM_PROMPT.format(
-            name=name,
-            slot=obs["slot"],
-            num_players=obs["num_players"],
-            stock_capacity=obs["stock_capacity"],
-            regrowth_rate=obs["regrowth_rate"],
-            collapse_threshold=obs["collapse_threshold"],
-            max_harvest=obs["max_harvest"],
-            rounds=obs["rounds"],
-            sanction_rules=sanction_rules,
-            norm_line=norm_line,
-            strategy=strategy,
-            sanction_field=sanction_field,
-            message_field=message_field,
-        )
-
-    def _complete(self, user_text: str, slot: int) -> str | None:
-        self.llm_calls += 1
-        # Pre-4.6 models (haiku 4.5, sonnet 4.5) narrate their analysis and never reach the JSON
-        # unless an assistant prefill forces the reply to be the JSON object itself. 4.6+ models
-        # reject prefill outright, emit clean JSON unprompted, and think before the text block —
-        # so they need max_tokens headroom for the thinking spend instead.
-        prefill = any(marker in self.model for marker in ("haiku-4-5", "sonnet-4-5", "haiku-4.5", "sonnet-4.5"))
-        messages = [{"role": "user", "content": user_text}]
-        if prefill:
-            messages.append({"role": "assistant", "content": "{"})
-        body = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 200 if prefill else 4000,
-            "system": self._system_prompt,
-            "messages": messages,
-        }
-        if not prefill:
-            # Thinking shares the max_tokens budget on 4.6+ models; low effort keeps a
-            # one-integer harvest decision from burning the budget before the text block.
-            body["output_config"] = {"effort": "low"}
-        completion = self._complete_bedrock(body) if self.backend == "bedrock" else self._complete_messages(body, slot)
-        if completion is None:
-            return None
-        return "{" + completion if prefill else completion
-
-    def _complete_bedrock(self, body: dict) -> str | None:
-        import botocore.exceptions  # noqa: PLC0415  # boto3 ships in the player image, not the coworld package
-
-        if self._bedrock_client is None:
-            import boto3  # noqa: PLC0415
-
-            self._bedrock_client = boto3.client("bedrock-runtime")
+    def _complete_messages(self, prompt: list[dict[str, str]], slot: int,
+            attempts: list[Attempt], deadline: float, on_attempt: Callable[[Attempt], None]) -> str | None:
+        body = {"model": self.model, "max_tokens": self.max_tokens, "temperature": self.temperature,
+            "system": prompt[0]["content"], "messages": prompt[1:]}
+        request = Request(f"{self.endpoint}/v1/messages", data=json.dumps(body).encode(),
+            headers={"content-type": "application/json", "anthropic-version": "2023-06-01",
+                "X-Coworld-Player-Slot": str(slot), "user-agent": "coworld-meadow/0.1"})
         for sleep_seconds in (*LLM_THROTTLE_SLEEPS, None):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
+            evidence = Attempt(policy="meadow/native", prompt=prompt, request=body,
+                decoder={"temperature": self.temperature, "max_tokens": self.max_tokens})
+            attempts.append(evidence)
+            on_attempt(evidence.model_copy(deep=True))
+            self.llm_calls += 1
+            started = time.monotonic()
             try:
-                response = self._bedrock_client.invoke_model(modelId=self.model, body=json.dumps(body))
-                content = json.loads(response["body"].read())["content"]
-                return next((block["text"] for block in content if block["type"] == "text"), "")
-            except botocore.exceptions.ClientError as error:
-                code = error.response.get("Error", {}).get("Code", "")
-                if code not in ("ThrottlingException", "ServiceUnavailableException", "ModelTimeoutException"):
-                    raise
-                if sleep_seconds is None:
-                    logger.warning("bedrock still throttled after retries, passing this round")
+                with urlopen(request, timeout=min(60, remaining)) as response:
+                    call_id = response.headers.get("X-Softmax-Llm-Call-Id")
+                    evidence.platform_call_id = UUID(call_id) if call_id is not None else None
+                    evidence.model_identity = response.headers.get("X-Coworld-Checkpoint-Sha256")
+                    evidence.tokenizer_identity = response.headers.get("X-Coworld-Tokenizer-Sha256")
+                    evidence.chat_template_sha256 = response.headers.get("X-Coworld-Chat-Template-Sha256")
+                    on_attempt(evidence.model_copy(deep=True))
+                    raw_response = response.read().decode()
+                    evidence.raw_response = raw_response
+                    evidence.latency_ms = (time.monotonic() - started) * 1000
+                    payload = json.loads(raw_response)
+                    evidence.raw_response = payload
+                    parsed = NativeResponse.model_validate(payload)
+                    evidence.model = parsed.model
+                    evidence.stop_reason = parsed.stop_reason
+                    evidence.input_tokens = parsed.usage.input_tokens
+                    evidence.output_tokens = parsed.usage.output_tokens
+                    if parsed.sampling_evidence is not None:
+                        evidence.prompt_token_ids = parsed.sampling_evidence.prompt_token_ids
+                        evidence.sampled_token_ids = parsed.sampling_evidence.completion_token_ids
+                        evidence.behavior_logprobs = parsed.sampling_evidence.behavior_log_probs
+                        evidence.stop_reason = parsed.sampling_evidence.stop_reason
+                    text = "".join(block.text for block in parsed.content if block.type == "text")
+                    evidence.response = text
+                    if parsed.stop_reason == "refusal":
+                        evidence.rejection_reason = "provider refusal"
+                        return None
+                    return text
+            except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, ValidationError) as error:
+                evidence.latency_ms = (time.monotonic() - started) * 1000
+                evidence.rejection_reason = type(error).__name__
+                if isinstance(error, HTTPError):
+                    call_id = error.headers.get("X-Softmax-Llm-Call-Id")
+                    evidence.platform_call_id = UUID(call_id) if call_id is not None else None
+                    evidence.raw_response = error.read().decode()
+                    if error.code not in (429, 529):
+                        raise
+                else:
+                    return None
+                if sleep_seconds is None or time.monotonic() + sleep_seconds >= deadline:
                     return None
                 time.sleep(sleep_seconds)
+            finally:
+                on_attempt(evidence.model_copy(deep=True))
         return None
 
-    def _complete_messages(self, body: dict, slot: int) -> str | None:
-        endpoint = os.environ.get("COWORLD_LLM_ENDPOINT")
-        base = (endpoint or os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com")).rstrip("/")
-        request_body = {
-            "model": self.model,
-            "max_tokens": body["max_tokens"],
-            "system": body["system"],
-            "messages": body["messages"],
-        }
-        request = Request(
-            f"{base}/v1/messages",
-            data=json.dumps(request_body).encode(),
-            headers={
-                "content-type": "application/json",
-                "anthropic-version": "2023-06-01",
-                "x-api-key": "sidecar" if endpoint else os.environ["ANTHROPIC_API_KEY"],
-                **({"X-Coworld-Player-Slot": str(slot)} if endpoint else {}),
-                "user-agent": "coworld-meadow/0.1",
-            },
-        )
-        for sleep_seconds in (*LLM_THROTTLE_SLEEPS, None):
-            try:
-                with urlopen(request, timeout=60) as response:
-                    content = json.load(response)["content"]
-                    return next((block["text"] for block in content if block["type"] == "text"), "")
-            except HTTPError as error:
-                if error.code not in (429, 529):
-                    raise
-                if sleep_seconds is None:
-                    logger.warning("anthropic API still overloaded after retries, passing this round")
-                    return None
-                time.sleep(sleep_seconds)
-        return None
-
-    def _parse(self, raw: str) -> dict | None:
+    @staticmethod
+    def _parse(raw: str) -> dict | None:
         start = raw.find("{")
         end = raw.rfind("}")
         if start < 0 or end <= start:
@@ -329,13 +333,32 @@ POLICIES = {
     "enforcer": EnforcerPolicy,
     "llm": LlmPolicy,
 }
-SEEDED_POLICIES = ("random", "llm")
+
+
+type ScriptedPolicy = SustainablePolicy | GreedyPolicy | RandomPolicy | ReciprocatorPolicy | DeterrableGreedyPolicy | EnforcerPolicy
+type Policy = ScriptedPolicy | LlmPolicy
+
+
+def policy_decision(policy: Policy, obs: dict, on_attempt: Callable[[Attempt], None] = lambda _attempt: None) -> PlayerDecision:
+    """Scripted controls and native players share the production observation and parser."""
+    if isinstance(policy, LlmPolicy):
+        return policy.act(obs, on_attempt)
+    config = MeadowConfig.model_validate(obs)
+    action = parse_action(policy.act(obs), obs["slot"], config)
+    prompt = decision_prompt(obs)
+    attempt = Attempt(policy="scripted/" + type(policy).__name__, origin="teacher", prompt=prompt,
+        response=action.model_dump_json(), parsed_action=action.model_dump(),
+        accepted=True, rejection_reason=None)
+    return PlayerDecision(round=obs["round"], action=action, attempts=[attempt],
+        selected_attempt_id=attempt.attempt_id, fallback_origin=None)
 
 
 def make_policy(name: str, seed: int = 0):
     """Instantiate a policy by registry name; seeded policies get the seed."""
     if name not in POLICIES:
         raise ValueError(f"unknown meadow policy {name!r}; known: {sorted(POLICIES)}")
-    if name in SEEDED_POLICIES:
-        return POLICIES[name](seed=seed)
+    if name == "random":
+        return RandomPolicy(seed=seed)
+    if name == "llm":
+        return LlmPolicy(seed=seed)
     return POLICIES[name]()

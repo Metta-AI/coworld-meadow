@@ -16,8 +16,10 @@ from typing import Any, cast
 
 import websockets
 
-from coworld.examples.meadow.player.policies import make_policy
+from coworld.examples.meadow.player.policies import make_policy, policy_decision
+from coworld.examples.meadow.shared.decision import AttemptProgress
 from coworld.examples.meadow.shared.log_shipper import get_logger
+from coworld.examples.meadow.shared.trajectory import Attempt
 
 logger = get_logger("meadow.player")
 
@@ -27,7 +29,7 @@ async def main() -> None:
     seed = int(os.environ.get("COWORLD_MEADOW_SEED", "0"))
     policy = make_policy(policy_name, seed=seed)
     url = os.environ["COWORLD_PLAYER_WS_URL"]
-    logger.info("policy %s connecting to %s", policy_name, url)
+    logger.info("policy %s connecting to game", policy_name)
     async with websockets.connect(url, ping_timeout=None) as websocket:
         try:
             while True:
@@ -45,7 +47,16 @@ async def main() -> None:
                     logger.info("received final message, exiting")
                     return
                 if message["type"] == "observation":
-                    await websocket.send(json.dumps(policy.act(message)))
+                    loop = asyncio.get_running_loop()
+                    decision_round = message["round"]
+
+                    def record_attempt(attempt: Attempt) -> None:
+                        packet = AttemptProgress(round=decision_round, attempt=attempt)
+                        future = asyncio.run_coroutine_threadsafe(websocket.send(packet.model_dump_json()), loop)
+                        future.result(timeout=5)
+
+                    decision = await asyncio.to_thread(policy_decision, policy, message, record_attempt)
+                    await websocket.send(decision.model_dump_json())
         except websockets.exceptions.ConnectionClosed:
             # The server exiting after the last round is the episode-over signal for a seat
             # still mid-act; a closed socket here is lifecycle, not an error.

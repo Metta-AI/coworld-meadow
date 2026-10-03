@@ -24,6 +24,7 @@ from coworld.examples.meadow.player.policies import (
     EnforcerPolicy,
     LlmPolicy,
     SustainablePolicy,
+    system_prompt,
 )
 
 MANIFEST = ROOT / "src/coworld/examples/meadow/coworld_manifest_template.json"
@@ -35,7 +36,8 @@ def compact(value: object) -> str:
 
 
 class TrainingSession:
-    def __init__(self, variant: str, mode: str, rounds: int | None):
+    def __init__(self, variant: str, mode: str, rounds: int | None, operator_prompt: str = ""):
+        self.operator_prompt = operator_prompt
         manifest = json.loads(MANIFEST.read_text())
         self.base = (
             manifest["certification"]["game_config"]
@@ -60,7 +62,6 @@ class TrainingSession:
         self.round_seconds = float(config["round_seconds"])
         self.names = [player["name"] for player in config["players"]]
         self.state = new_state(self.config)
-        self.prompt_policy = LlmPolicy(strategy="")
         self.seat = 0
         self.decision_id = 0
         self.actions = []
@@ -91,7 +92,7 @@ class TrainingSession:
         messages = [
             {
                 "role": "system",
-                "content": self.prompt_policy._build_system_prompt(view),
+                "content": system_prompt(view, self.operator_prompt),
             },
             {
                 "role": "user",
@@ -150,6 +151,7 @@ class TrainingSession:
                 },
                 "required": ["harvest"],
             },
+            "inference_mode": "text_action" if self.mode == "text" else "choice",
             "typed_question": {
                 "state": view,
                 "instructions": "Choose harvest and optional sanction.",
@@ -228,7 +230,7 @@ class TrainingSession:
     def step(self, request: dict[str, object]) -> dict[str, object]:
         if request["decision_id"] != self.decision_id:
             return {"kind": "rejected", "reason": "stale decision"}
-        raw = self.prompt_policy._parse(str(request["response"]))
+        raw = LlmPolicy._parse(str(request["response"]))
         if self.mode == "choice":
             if not isinstance(raw, dict) or raw.keys() != {"harvest", "sanction"}:
                 return {
@@ -253,7 +255,7 @@ class TrainingSession:
             self.actions = []
             self.seat = 0
         return {
-            "kind": "accepted",
+            "kind": "consumed_rejection" if raw is None else "accepted",
             "action": action.model_dump(),
             "observation": self.observation(),
         }
@@ -264,8 +266,9 @@ def main() -> None:
     parser.add_argument("--variant", default="certification")
     parser.add_argument("--mode", choices=("choice", "text"), default="choice")
     parser.add_argument("--rounds", type=int)
+    parser.add_argument("--operator-prompt", default="")
     args = parser.parse_args()
-    session = TrainingSession(args.variant, args.mode, args.rounds)
+    session = TrainingSession(args.variant, args.mode, args.rounds, args.operator_prompt)
     for line in sys.stdin:
         request = json.loads(line)
         match request["kind"]:
