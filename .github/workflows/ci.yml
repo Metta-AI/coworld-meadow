@@ -18,7 +18,11 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install -r requirements.txt
       - run: python -m pytest -q
+      - name: Complete wording and encoding workflows
+        run: python tools/test_prompt_games.py
       - name: Actual native player and engine episodes
         run: python tools/test_native_trajectory.py "$GITHUB_SHA" "$RUNNER_TEMP/meadow-native"
       - name: Whole production teacher corpus
         run: python tools/export_posttrain.py "$RUNNER_TEMP/meadow-teachers" --variant institutions --games 10
+      - name: Published eight-seat held-out episode
+        run: python tools/test_native_trajectory.py "$GITHUB_SHA" "$RUNNER_TEMP/meadow-published" --variant default --wording heldout-briefing --mode accepted

@@ -6,6 +6,7 @@ from uuid import uuid4
 from coworld.examples.meadow.game.engine import MeadowConfig, new_state, observation
 from coworld.examples.meadow.player.policies import LlmPolicy, system_prompt
 from coworld.examples.meadow.shared.decision import apply_player_decision
+from coworld.examples.meadow.shared.prompts import PromptSelection
 
 
 def test_native_player_captures_actual_request_response_and_applied_action(monkeypatch):
@@ -40,6 +41,7 @@ def test_native_player_captures_actual_request_response_and_applied_action(monke
     monkeypatch.setenv("COWORLD_LLM_TEMPERATURE", "0")
     config = MeadowConfig(num_players=2)
     view = observation(new_state(config), config, 1, ["one", "two"], 5)
+    view["prompt_configuration"] = PromptSelection().model_dump()
     try:
         decision = LlmPolicy(strategy="PRIVATE OPERATOR SENTINEL").act(view)
     finally:

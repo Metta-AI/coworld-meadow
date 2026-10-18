@@ -48,6 +48,7 @@ from coworld.examples.meadow.shared.decision import (
     parse_reply,
 )
 from coworld.examples.meadow.shared.log_shipper import get_logger
+from coworld.examples.meadow.shared.prompts import PromptConfig
 from coworld.examples.meadow.shared.trajectory import (
     Attempt,
     DecisionRecord,
@@ -74,6 +75,7 @@ REPLAY_URI = os.environ["COGAME_SAVE_REPLAY_URI"]
 
 TOKENS: list[str] = RAW_CONFIG["tokens"]
 PLAYER_NAMES: list[str] = [player["name"] for player in RAW_CONFIG["players"]]
+PROMPT_SELECTION = PromptConfig.model_validate(RAW_CONFIG).resolve()
 CONFIG = MeadowConfig.model_validate({**RAW_CONFIG, "num_players": len(TOKENS)})
 ROUND_SECONDS = float(RAW_CONFIG.get("round_seconds", 20.0))
 PLAYER_CONNECT_TIMEOUT_SECONDS = float(RAW_CONFIG.get("player_connect_timeout_seconds", 180))
@@ -359,6 +361,7 @@ async def _broadcast_observations() -> None:
 
 def _player_observation(slot: int) -> dict[str, Any]:
     view = observation(session.engine, CONFIG, slot, PLAYER_NAMES, session.round_seconds)
+    view["prompt_configuration"] = PROMPT_SELECTION.model_dump()
     if session.engine.round == CONFIG.rounds:
         return {**view, "type": "final", "done": True}
     return view

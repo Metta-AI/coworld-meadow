@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field, ValidationError
 from coworld.examples.meadow.game.engine import MeadowConfig, RoundAction, parse_action
 from coworld.examples.meadow.shared.decision import PlayerDecision, decision_prompt
 from coworld.examples.meadow.shared.trajectory import Attempt
+from coworld.examples.meadow.shared.prompts import PromptSelection
 
 logger = logging.getLogger("meadow.policies")
 
@@ -38,7 +39,9 @@ DEFAULT_STOCK_FLOOR = 30.0
 class SustainablePolicy:
     """Harvest a fixed quota while the stock is healthy; rest otherwise."""
 
-    def __init__(self, quota: int = DEFAULT_QUOTA, stock_floor: float = DEFAULT_STOCK_FLOOR) -> None:
+    def __init__(
+        self, quota: int = DEFAULT_QUOTA, stock_floor: float = DEFAULT_STOCK_FLOOR
+    ) -> None:
         self.quota = quota
         self.stock_floor = stock_floor
 
@@ -72,14 +75,18 @@ class ReciprocatorPolicy:
     player took more than quota + 0.5 last round, harvest max this round.
     """
 
-    def __init__(self, quota: int = DEFAULT_QUOTA, stock_floor: float = DEFAULT_STOCK_FLOOR) -> None:
+    def __init__(
+        self, quota: int = DEFAULT_QUOTA, stock_floor: float = DEFAULT_STOCK_FLOOR
+    ) -> None:
         self.quota = quota
         self.stock_floor = stock_floor
 
     def act(self, obs: dict) -> dict:
         total_last = obs["last_round_total_harvest"]
         if total_last is not None:
-            others_mean = (total_last - (obs["your_last_harvest"] or 0.0)) / (obs["num_players"] - 1)
+            others_mean = (total_last - (obs["your_last_harvest"] or 0.0)) / (
+                obs["num_players"] - 1
+            )
             if others_mean > self.quota + 0.5:
                 return {"harvest": obs["max_harvest"]}
         harvest = self.quota if obs["stock"] >= self.stock_floor else 0
@@ -111,12 +118,16 @@ class EnforcerPolicy:
     the ledger-x-sanction interaction the experiments measure.
     """
 
-    def __init__(self, quota: int = DEFAULT_QUOTA, stock_floor: float = DEFAULT_STOCK_FLOOR) -> None:
+    def __init__(
+        self, quota: int = DEFAULT_QUOTA, stock_floor: float = DEFAULT_STOCK_FLOOR
+    ) -> None:
         self.quota = quota
         self.stock_floor = stock_floor
 
     def act(self, obs: dict) -> dict:
-        action: dict = {"harvest": self.quota if obs["stock"] >= self.stock_floor else 0}
+        action: dict = {
+            "harvest": self.quota if obs["stock"] >= self.stock_floor else 0
+        }
         last_harvests = obs.get("last_round_harvests")
         if obs["sanctions_enabled"] and last_harvests:
             offenders = [
@@ -125,12 +136,14 @@ class EnforcerPolicy:
                 if slot != obs["slot"] and harvest > self.quota
             ]
             if offenders:
-                worst_harvest, worst_slot = max(offenders, key=lambda pair: (pair[0], -pair[1]))
+                worst_harvest, worst_slot = max(
+                    offenders, key=lambda pair: (pair[0], -pair[1])
+                )
                 action["sanction"] = worst_slot
         return action
 
 
-LLM_SYSTEM_PROMPT = """You are {name}, player slot {slot} of {num_players} in Meadow, a shared-commons game.
+LLM_SYSTEM_PROMPT = """{introduction}
 
 Rules:
 - A shared stock (capacity {stock_capacity}) regrows each round by {regrowth_rate} * stock * (1 - stock/capacity).
@@ -144,16 +157,16 @@ Your goal is to maximize your own final score.{strategy}
 Each turn you receive the current game state as JSON. Reply with ONLY one JSON object, no other text:
 {{"harvest": <int 0..{max_harvest}>{sanction_field}{message_field}}}"""
 
-LLM_SANCTION_RULES = (
-    "\n- You may also sanction one player per round: you pay {sanction_cost}, they lose {sanction_burn}."
-)
+LLM_SANCTION_RULES = "\n- You may also sanction one player per round: you pay {sanction_cost}, they lose {sanction_burn}."
 # Long enough to ride out sustained shared-quota throttling (see BEDROCK.md): a seat that
 # gives up too early records a pass, which poisons the episode as data. ~2 minutes of
 # retries before conceding the round.
 LLM_THROTTLE_SLEEPS = (1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 60.0)
 
 
-def system_prompt(obs: dict, strategy: str = "") -> str:
+def system_prompt(
+    obs: dict, strategy: str = "", *, selection: PromptSelection = PromptSelection()
+) -> str:
     sanction_rules = ""
     sanction_field = ""
     if obs["sanctions_enabled"]:
@@ -161,15 +174,17 @@ def system_prompt(obs: dict, strategy: str = "") -> str:
             sanction_cost=obs["sanction_cost"], sanction_burn=obs["sanction_burn"]
         )
         sanction_field = ', "sanction": <player slot int or null>'
-    message_field = ', "message": "<optional chat, may be empty>"' if obs["chat_enabled"] else ""
+    message_field = (
+        ', "message": "<optional chat, may be empty>"' if obs["chat_enabled"] else ""
+    )
     norm_line = f"\n- Posted notice: {obs['norm_text']}" if obs["norm_text"] else ""
-    strategy = f"\n\nStanding orders from your operator:\n{strategy}" if strategy else ""
+    strategy = (
+        f"\n\nStanding orders from your operator:\n{strategy}" if strategy else ""
+    )
     ledger = obs.get("ledger")
     name = ledger[obs["slot"]]["name"] if ledger else f"P{obs['slot']}"
     return LLM_SYSTEM_PROMPT.format(
-        name=name,
-        slot=obs["slot"],
-        num_players=obs["num_players"],
+        introduction=selection.introduction(name, obs["slot"], obs["num_players"]),
         stock_capacity=obs["stock_capacity"],
         regrowth_rate=obs["regrowth_rate"],
         collapse_threshold=obs["collapse_threshold"],
@@ -181,7 +196,6 @@ def system_prompt(obs: dict, strategy: str = "") -> str:
         sanction_field=sanction_field,
         message_field=message_field,
     )
-
 
 
 class NativeText(BaseModel):
@@ -212,25 +226,49 @@ class NativeResponse(BaseModel):
 class LlmPolicy:
     """Native sidecar inference with one private attempt per actual HTTP request."""
 
-    def __init__(self, seed: int = 0, model: str | None = None, strategy: str | None = None) -> None:
-        self.strategy = strategy if strategy is not None else os.environ.get("COWORLD_MEADOW_PROMPT", "")
-        self.model = model or os.environ.get("COWORLD_LLM_MODEL", "anthropic/claude-haiku-4.5")
+    def __init__(
+        self, seed: int = 0, model: str | None = None, strategy: str | None = None
+    ) -> None:
+        self.strategy = (
+            strategy
+            if strategy is not None
+            else os.environ.get("COWORLD_MEADOW_PROMPT", "")
+        )
+        self.model = model or os.environ.get(
+            "COWORLD_LLM_MODEL", "anthropic/claude-haiku-4.5"
+        )
         self.endpoint = os.environ["COWORLD_LLM_ENDPOINT"].rstrip("/")
         self.temperature = float(os.environ.get("COWORLD_LLM_TEMPERATURE", "1"))
         self.max_tokens = int(os.environ.get("COWORLD_LLM_MAX_TOKENS", "4096"))
         if not 0 <= self.temperature <= 1 or self.max_tokens <= 0:
-            raise ValueError("native decoder requires finite temperature0..1 and positive token budget")
+            raise ValueError(
+                "native decoder requires finite temperature0..1 and positive token budget"
+            )
+        self.prompt_selection: PromptSelection | None = None
         self.llm_failures = 0
         self.llm_calls = 0
 
-    def act(self, obs: dict, on_attempt: Callable[[Attempt], None] = lambda _attempt: None) -> PlayerDecision:
-        prompt = decision_prompt(obs, self.strategy)
+    def act(
+        self, obs: dict, on_attempt: Callable[[Attempt], None] = lambda _attempt: None
+    ) -> PlayerDecision:
+        selection = PromptSelection.model_validate(obs["prompt_configuration"])
+        if self.prompt_selection is None:
+            self.prompt_selection = selection
+        elif selection != self.prompt_selection:
+            raise ValueError("prompt selection changed during episode")
+        prompt = decision_prompt(obs, self.strategy, selection=selection)
         config = MeadowConfig.model_validate({**obs, "num_players": obs["num_players"]})
         attempts: list[Attempt] = []
         deadline = time.monotonic() + float(obs["round_seconds"])
-        raw = self._complete_messages(prompt, obs["slot"], attempts, deadline, on_attempt)
+        raw = self._complete_messages(
+            prompt, obs["slot"], attempts, deadline, on_attempt
+        )
         parsed_action = self._parse(raw) if raw is not None else None
-        action = parse_action(parsed_action, obs["slot"], config) if parsed_action is not None else None
+        action = (
+            parse_action(parsed_action, obs["slot"], config)
+            if parsed_action is not None
+            else None
+        )
         selected = None
         if action is not None:
             attempts[-1].parsed_action = action.model_dump()
@@ -241,23 +279,54 @@ class LlmPolicy:
             self.llm_failures += 1
             if attempts and raw is not None:
                 attempts[-1].rejection_reason = "invalid native action reply"
-        return PlayerDecision(round=obs["round"], action=action if action is not None else RoundAction(),
-            attempts=attempts, selected_attempt_id=selected,
-            fallback_origin=None if selected is not None else "native-call-or-parser-failure")
+        return PlayerDecision(
+            round=obs["round"],
+            action=action if action is not None else RoundAction(),
+            attempts=attempts,
+            selected_attempt_id=selected,
+            fallback_origin=None
+            if selected is not None
+            else "native-call-or-parser-failure",
+        )
 
-    def _complete_messages(self, prompt: list[dict[str, str]], slot: int,
-            attempts: list[Attempt], deadline: float, on_attempt: Callable[[Attempt], None]) -> str | None:
-        body = {"model": self.model, "max_tokens": self.max_tokens, "temperature": self.temperature,
-            "system": prompt[0]["content"], "messages": prompt[1:]}
-        request = Request(f"{self.endpoint}/v1/messages", data=json.dumps(body).encode(),
-            headers={"content-type": "application/json", "anthropic-version": "2023-06-01",
-                "X-Coworld-Player-Slot": str(slot), "user-agent": "coworld-meadow/0.1"})
+    def _complete_messages(
+        self,
+        prompt: list[dict[str, str]],
+        slot: int,
+        attempts: list[Attempt],
+        deadline: float,
+        on_attempt: Callable[[Attempt], None],
+    ) -> str | None:
+        body = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+            "system": prompt[0]["content"],
+            "messages": prompt[1:],
+        }
+        request = Request(
+            f"{self.endpoint}/v1/messages",
+            data=json.dumps(body).encode(),
+            headers={
+                "content-type": "application/json",
+                "anthropic-version": "2023-06-01",
+                "X-Coworld-Player-Slot": str(slot),
+                "user-agent": "coworld-meadow/0.1",
+            },
+        )
         for sleep_seconds in (*LLM_THROTTLE_SLEEPS, None):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return None
-            evidence = Attempt(policy="meadow/native", prompt=prompt, request=body,
-                decoder={"temperature": self.temperature, "max_tokens": self.max_tokens})
+            evidence = Attempt(
+                policy="meadow/native",
+                prompt=prompt,
+                request=body,
+                decoder={
+                    "temperature": self.temperature,
+                    "max_tokens": self.max_tokens,
+                },
+            )
             attempts.append(evidence)
             on_attempt(evidence.model_copy(deep=True))
             self.llm_calls += 1
@@ -265,10 +334,18 @@ class LlmPolicy:
             try:
                 with urlopen(request, timeout=min(60, remaining)) as response:
                     call_id = response.headers.get("X-Softmax-Llm-Call-Id")
-                    evidence.platform_call_id = UUID(call_id) if call_id is not None else None
-                    evidence.model_identity = response.headers.get("X-Coworld-Checkpoint-Sha256")
-                    evidence.tokenizer_identity = response.headers.get("X-Coworld-Tokenizer-Sha256")
-                    evidence.chat_template_sha256 = response.headers.get("X-Coworld-Chat-Template-Sha256")
+                    evidence.platform_call_id = (
+                        UUID(call_id) if call_id is not None else None
+                    )
+                    evidence.model_identity = response.headers.get(
+                        "X-Coworld-Checkpoint-Sha256"
+                    )
+                    evidence.tokenizer_identity = response.headers.get(
+                        "X-Coworld-Tokenizer-Sha256"
+                    )
+                    evidence.chat_template_sha256 = response.headers.get(
+                        "X-Coworld-Chat-Template-Sha256"
+                    )
                     on_attempt(evidence.model_copy(deep=True))
                     raw_response = response.read().decode()
                     evidence.raw_response = raw_response
@@ -281,28 +358,47 @@ class LlmPolicy:
                     evidence.input_tokens = parsed.usage.input_tokens
                     evidence.output_tokens = parsed.usage.output_tokens
                     if parsed.sampling_evidence is not None:
-                        evidence.prompt_token_ids = parsed.sampling_evidence.prompt_token_ids
-                        evidence.sampled_token_ids = parsed.sampling_evidence.completion_token_ids
-                        evidence.behavior_logprobs = parsed.sampling_evidence.behavior_log_probs
+                        evidence.prompt_token_ids = (
+                            parsed.sampling_evidence.prompt_token_ids
+                        )
+                        evidence.sampled_token_ids = (
+                            parsed.sampling_evidence.completion_token_ids
+                        )
+                        evidence.behavior_logprobs = (
+                            parsed.sampling_evidence.behavior_log_probs
+                        )
                         evidence.stop_reason = parsed.sampling_evidence.stop_reason
-                    text = "".join(block.text for block in parsed.content if block.type == "text")
+                    text = "".join(
+                        block.text for block in parsed.content if block.type == "text"
+                    )
                     evidence.response = text
                     if parsed.stop_reason == "refusal":
                         evidence.rejection_reason = "provider refusal"
                         return None
                     return text
-            except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, ValidationError) as error:
+            except (
+                HTTPError,
+                URLError,
+                TimeoutError,
+                json.JSONDecodeError,
+                ValidationError,
+            ) as error:
                 evidence.latency_ms = (time.monotonic() - started) * 1000
                 evidence.rejection_reason = type(error).__name__
                 if isinstance(error, HTTPError):
                     call_id = error.headers.get("X-Softmax-Llm-Call-Id")
-                    evidence.platform_call_id = UUID(call_id) if call_id is not None else None
+                    evidence.platform_call_id = (
+                        UUID(call_id) if call_id is not None else None
+                    )
                     evidence.raw_response = error.read().decode()
                     if error.code not in (429, 529):
                         raise
                 else:
                     return None
-                if sleep_seconds is None or time.monotonic() + sleep_seconds >= deadline:
+                if (
+                    sleep_seconds is None
+                    or time.monotonic() + sleep_seconds >= deadline
+                ):
                     return None
                 time.sleep(sleep_seconds)
             finally:
@@ -335,22 +431,46 @@ POLICIES = {
 }
 
 
-type ScriptedPolicy = SustainablePolicy | GreedyPolicy | RandomPolicy | ReciprocatorPolicy | DeterrableGreedyPolicy | EnforcerPolicy
+type ScriptedPolicy = (
+    SustainablePolicy
+    | GreedyPolicy
+    | RandomPolicy
+    | ReciprocatorPolicy
+    | DeterrableGreedyPolicy
+    | EnforcerPolicy
+)
 type Policy = ScriptedPolicy | LlmPolicy
 
 
-def policy_decision(policy: Policy, obs: dict, on_attempt: Callable[[Attempt], None] = lambda _attempt: None) -> PlayerDecision:
+def policy_decision(
+    policy: Policy,
+    obs: dict,
+    on_attempt: Callable[[Attempt], None] = lambda _attempt: None,
+) -> PlayerDecision:
     """Scripted controls and native players share the production observation and parser."""
     if isinstance(policy, LlmPolicy):
         return policy.act(obs, on_attempt)
     config = MeadowConfig.model_validate(obs)
     action = parse_action(policy.act(obs), obs["slot"], config)
-    prompt = decision_prompt(obs)
-    attempt = Attempt(policy="scripted/" + type(policy).__name__, origin="teacher", prompt=prompt,
-        response=action.model_dump_json(), parsed_action=action.model_dump(),
-        accepted=True, rejection_reason=None)
-    return PlayerDecision(round=obs["round"], action=action, attempts=[attempt],
-        selected_attempt_id=attempt.attempt_id, fallback_origin=None)
+    prompt = decision_prompt(
+        obs, selection=PromptSelection.model_validate(obs["prompt_configuration"])
+    )
+    attempt = Attempt(
+        policy="scripted/" + type(policy).__name__,
+        origin="teacher",
+        prompt=prompt,
+        response=action.model_dump_json(),
+        parsed_action=action.model_dump(),
+        accepted=True,
+        rejection_reason=None,
+    )
+    return PlayerDecision(
+        round=obs["round"],
+        action=action,
+        attempts=[attempt],
+        selected_attempt_id=attempt.attempt_id,
+        fallback_origin=None,
+    )
 
 
 def make_policy(name: str, seed: int = 0):

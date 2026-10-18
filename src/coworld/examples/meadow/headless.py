@@ -19,9 +19,19 @@ from coworld.examples.meadow.game.engine import (
     observation,
     step,
 )
-from coworld.examples.meadow.player.policies import Policy, make_policy, policy_decision
-from coworld.examples.meadow.shared.decision import PlayerDecision, executed_action
+from coworld.examples.meadow.player.policies import (
+    LlmPolicy,
+    Policy,
+    make_policy,
+    policy_decision,
+)
+from coworld.examples.meadow.shared.decision import (
+    PlayerDecision,
+    decision_prompt,
+    executed_action,
+)
 from coworld.examples.meadow.shared.trajectory import Trajectory
+from coworld.examples.meadow.shared.prompts import PromptSelection
 
 
 def default_player_names(count: int) -> list[str]:
@@ -30,7 +40,9 @@ def default_player_names(count: int) -> list[str]:
 
 def build_policies(names: list[str], seed: int = 0) -> list[Policy]:
     """One policy per seat; seeded policies get distinct per-slot seeds."""
-    return [make_policy(name, seed=seed * 1000 + slot) for slot, name in enumerate(names)]
+    return [
+        make_policy(name, seed=seed * 1000 + slot) for slot, name in enumerate(names)
+    ]
 
 
 def run_episode(
@@ -39,6 +51,7 @@ def run_episode(
     player_names: list[str] | None = None,
     parallel_seats: bool = False,
     trajectory: Trajectory | None = None,
+    prompt_selection: PromptSelection = PromptSelection(),
 ) -> MeadowState:
     """Run one full episode; with `parallel_seats`, seats act concurrently.
 
@@ -53,25 +66,61 @@ def run_episode(
 
     def decide(slot: int) -> PlayerDecision:
         obs = observation(state, config, slot, names, round_seconds=60.0)
+        obs["prompt_configuration"] = prompt_selection.model_dump()
         return policy_decision(policies[slot], obs)
 
     slots = range(config.num_players)
     with ThreadPoolExecutor(max_workers=config.num_players) as executor:
         for _ in range(config.rounds):
-            views = [observation(state, config, slot, names, round_seconds=60.0) for slot in slots]
-            decisions = list(executor.map(decide, slots)) if parallel_seats else [decide(slot) for slot in slots]
+            views = [
+                observation(state, config, slot, names, round_seconds=60.0)
+                for slot in slots
+            ]
+            for view in views:
+                view["prompt_configuration"] = prompt_selection.model_dump()
+            decisions = (
+                list(executor.map(decide, slots))
+                if parallel_seats
+                else [decide(slot) for slot in slots]
+            )
             actions = [decision.action for decision in decisions]
             record = step(state, actions, config)
             if trajectory is not None:
                 for slot, decision in enumerate(decisions):
-                    selected = next((attempt for attempt in decision.attempts
-                        if attempt.attempt_id == decision.selected_attempt_id), None)
-                    trajectory.record(decision_id=f"round-{record.round}-seat-{slot}", seat=slot,
-                        observation=views[slot], prompt=selected.prompt if selected else None,
-                        attempts=decision.attempts, executed_action=executed_action(record, slot).model_dump(),
-                        fallback_origin=decision.fallback_origin, terminal=state.round == config.rounds)
+                    selected = next(
+                        (
+                            attempt
+                            for attempt in decision.attempts
+                            if attempt.attempt_id == decision.selected_attempt_id
+                        ),
+                        None,
+                    )
+                    policy = policies[slot]
+                    system, user = decision_prompt(
+                        views[slot],
+                        policy.strategy if isinstance(policy, LlmPolicy) else "",
+                        selection=prompt_selection,
+                    )
+                    views[slot]["prompt_template"] = prompt_selection.metadata(
+                        system["content"], user["content"]
+                    )
+                    trajectory.record(
+                        decision_id=f"round-{record.round}-seat-{slot}",
+                        seat=slot,
+                        observation=views[slot],
+                        prompt=selected.prompt if selected else None,
+                        attempts=decision.attempts,
+                        executed_action=executed_action(record, slot).model_dump(),
+                        fallback_origin=decision.fallback_origin,
+                        terminal=state.round == config.rounds,
+                    )
     if trajectory is not None:
-        trajectory.finish(outcome=episode_results(state).model_dump(mode="json"),
-            participant_outcomes={str(slot): {"score": round(score, 3)} for slot, score in enumerate(state.scores)},
-            completed=state.round == config.rounds)
+        trajectory.finish(
+            outcome=episode_results(state).model_dump(mode="json"),
+            participant_outcomes={
+                str(slot): {"score": round(score, 3)}
+                for slot, score in enumerate(state.scores)
+            },
+            completed=state.round == config.rounds,
+        )
     return state

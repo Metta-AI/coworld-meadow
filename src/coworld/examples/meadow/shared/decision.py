@@ -1,4 +1,5 @@
 """The same parsed player decision drives hosted, headless, and language training."""
+
 from __future__ import annotations
 
 import json
@@ -13,6 +14,7 @@ from coworld.examples.meadow.game.engine import (
     parse_action,
 )
 from coworld.examples.meadow.shared.trajectory import Attempt
+from coworld.examples.meadow.shared.prompts import PromptSelection
 
 
 class PlayerDecision(BaseModel):
@@ -34,7 +36,9 @@ def parse_reply(raw: str, slot: int, config: MeadowConfig) -> RoundAction | None
     return parse_action(parsed, slot, config) if parsed is not None else None
 
 
-def apply_player_decision(decision: PlayerDecision, slot: int, config: MeadowConfig) -> PlayerDecision:
+def apply_player_decision(
+    decision: PlayerDecision, slot: int, config: MeadowConfig
+) -> PlayerDecision:
     """The authenticated socket owns the seat; it does not establish a teacher identity."""
     decision = decision.model_copy(deep=True)
     for attempt in decision.attempts:
@@ -43,13 +47,25 @@ def apply_player_decision(decision: PlayerDecision, slot: int, config: MeadowCon
             attempt.origin = "unknown"
     canonical = parse_action(decision.action.model_dump(), slot, config)
     if not decision.attempts and decision.fallback_origin is None:
-        attempt = Attempt(policy="external-action", origin="unknown", prompt=None,
-            response=decision.action.model_dump_json(), parsed_action=canonical.model_dump(),
-            accepted=True, rejection_reason=None)
+        attempt = Attempt(
+            policy="external-action",
+            origin="unknown",
+            prompt=None,
+            response=decision.action.model_dump_json(),
+            parsed_action=canonical.model_dump(),
+            accepted=True,
+            rejection_reason=None,
+        )
         decision.attempts = [attempt]
         decision.selected_attempt_id = attempt.attempt_id
-    selected = [attempt for attempt in decision.attempts if attempt.attempt_id == decision.selected_attempt_id]
-    if len({attempt.attempt_id for attempt in decision.attempts}) != len(decision.attempts):
+    selected = [
+        attempt
+        for attempt in decision.attempts
+        if attempt.attempt_id == decision.selected_attempt_id
+    ]
+    if len({attempt.attempt_id for attempt in decision.attempts}) != len(
+        decision.attempts
+    ):
         raise ValueError("duplicate native attempt identity")
     if decision.fallback_origin is not None:
         if decision.selected_attempt_id is not None:
@@ -59,10 +75,14 @@ def apply_player_decision(decision: PlayerDecision, slot: int, config: MeadowCon
     if len(selected) != 1:
         raise ValueError("submitted decision must select exactly one response")
     attempt = selected[0]
-    parsed = parse_reply(TypeAdapter(str).validate_python(attempt.response), slot, config)
+    parsed = parse_reply(
+        TypeAdapter(str).validate_python(attempt.response), slot, config
+    )
     attempt.parsed_action = parsed.model_dump() if parsed is not None else None
     if attempt.parsed_action != canonical.model_dump():
-        attempt.rejection_reason = "model response differs from submitted canonical action"
+        attempt.rejection_reason = (
+            "model response differs from submitted canonical action"
+        )
         decision.action = RoundAction()
         decision.selected_attempt_id = None
         decision.fallback_origin = "player-parser-mismatch"
@@ -73,20 +93,47 @@ def apply_player_decision(decision: PlayerDecision, slot: int, config: MeadowCon
     return decision
 
 
-def decision_prompt(view: dict, strategy: str = "") -> list[dict[str, str]]:
+def decision_prompt(
+    view: dict, strategy: str = "", *, selection: PromptSelection = PromptSelection()
+) -> list[dict[str, str]]:
     from coworld.examples.meadow.player.policies import system_prompt
 
     return [
-        {"role": "system", "content": system_prompt(view, strategy)},
-        {"role": "user", "content": json.dumps({key: value for key, value in view.items() if key not in {"type", "round_seconds"}}, separators=(",", ":"))},
+        {
+            "role": "system",
+            "content": system_prompt(view, strategy, selection=selection),
+        },
+        {
+            "role": "user",
+            "content": json.dumps(
+                {
+                    key: value
+                    for key, value in view.items()
+                    if key
+                    not in {
+                        "type",
+                        "round_seconds",
+                        "prompt_configuration",
+                        "prompt_template",
+                    }
+                },
+                separators=(",", ":"),
+            ),
+        },
     ]
 
 
 def executed_action(record: RoundRecord, slot: int) -> RoundAction:
     """Derive the applied command from the settled engine record, including chat and sanctions."""
-    return RoundAction(harvest=record.demands[slot],
-        sanction=next((entry.target for entry in record.sanctions if entry.by == slot), None),
-        message=next((entry.text for entry in record.messages if entry.slot == slot), None))
+    return RoundAction(
+        harvest=record.demands[slot],
+        sanction=next(
+            (entry.target for entry in record.sanctions if entry.by == slot), None
+        ),
+        message=next(
+            (entry.text for entry in record.messages if entry.slot == slot), None
+        ),
+    )
 
 
 class AttemptProgress(BaseModel):
