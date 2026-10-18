@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from typing import TextIO, cast
 
 VARIANTS = ("certification", "default", "anonymous", "institutions", "no-chat")
 WORDINGS = (
@@ -46,17 +47,15 @@ def play(
         text=True,
         env=env,
     )
-    assert (
-        process.stdin is not None
-        and process.stdout is not None
-        and process.stderr is not None
-    )
+    stdin = cast(TextIO, process.stdin)
+    stdout = cast(TextIO, process.stdout)
+    stderr = cast(TextIO, process.stderr)
 
     def request(body: dict) -> dict:
-        process.stdin.write(json.dumps(body) + "\n")
-        process.stdin.flush()
-        line = process.stdout.readline()
-        assert line, process.stderr.read()
+        stdin.write(json.dumps(body) + "\n")
+        stdin.flush()
+        line = stdout.readline()
+        assert line, stderr.read()
         return json.loads(line)
 
     transcript = []
@@ -111,8 +110,8 @@ def play(
         transcript.append((obs, encoding, teacher, response["action"]))
         obs = response["observation"]
     transcript.append(obs)
-    process.stdin.close()
-    assert process.wait(timeout=30) == 0, process.stderr.read()
+    stdin.close()
+    assert process.wait(timeout=30) == 0, stderr.read()
     return transcript
 
 

@@ -23,6 +23,13 @@ jobs:
       - name: Actual native player and engine episodes
         run: python tools/test_native_trajectory.py "$GITHUB_SHA" "$RUNNER_TEMP/meadow-native"
       - name: Whole production teacher corpus
-        run: python tools/export_posttrain.py "$RUNNER_TEMP/meadow-teachers" --variant institutions --games 10
+        run: |
+          for variant in default anonymous institutions no-chat; do
+            for wording in canonical plain numbered questions reordered; do
+              output="$RUNNER_TEMP/meadow-$variant-$wording"
+              python tools/export_posttrain.py "$output" --variant "$variant" --games 10 --prompt-variant "$wording"
+              python tools/test_source_candidates.py "$output"
+            done
+          done
       - name: Published eight-seat held-out episode
         run: python tools/test_native_trajectory.py "$GITHUB_SHA" "$RUNNER_TEMP/meadow-published" --variant default --wording heldout-briefing --mode accepted

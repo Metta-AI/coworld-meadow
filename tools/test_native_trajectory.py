@@ -101,7 +101,7 @@ def main() -> None:
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
             port = listener.getsockname()[1]
-        config = {
+        config: dict = {
             "seed": 17,
             "rounds": 2,
             "round_seconds": 2,
