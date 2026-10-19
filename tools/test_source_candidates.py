@@ -26,8 +26,6 @@ def main() -> None:
         manifest["format"] == "coworld-private-candidates-v1"
         and manifest["review_required"] is True
     )
-    selection = PromptSelection.model_validate(manifest["prompt_configuration"])
-    assert not selection.variant.startswith("heldout-")
     template = json.loads(
         (
             Path(__file__).resolve().parents[1]
@@ -40,6 +38,8 @@ def main() -> None:
     names = [player["name"] for player in variant["game_config"]["players"]]
     families = set()
     for run in manifest["runs"]:
+        selection = PromptSelection.model_validate(run["prompt_selection"])
+        assert not selection.variant.startswith("heldout-")
         config = MeadowConfig.model_validate(run["configuration"])
         state = new_state(config)
         source = args.directory / "episodes" / (run["episode_id"] + ".jsonl")

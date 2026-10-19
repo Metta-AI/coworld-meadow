@@ -59,16 +59,18 @@ command. `--rounds N` fixes a shorter curriculum. A terminal message reports the
 
 Game configuration and bridge reset requests accept `promptVariant`: `canonical` (default), `plain`, `numbered`,
 `questions`, `reordered`, `heldout-briefing`, `heldout-reference`, or `mixed`. Mixed selection requires a nonnegative
-`promptSeed`; its remainder modulo five selects a training introduction. Selection stays fixed throughout an episode
-and does not alter simulation randomness. Shared rules, observations, and action schemas retain their existing bytes.
+`promptSeed`; its remainder modulo five selects a training wording. Selection stays fixed throughout an episode
+and does not alter simulation randomness. The v2 bank varies resource, collapse, allocation, and scoring explanations and their order. Canonical prompts,
+observations, action schemas, posted notices, and operator instructions retain their existing bytes.
 
 Native observations carry `prompt_configuration`. Native players validate that selection stays fixed and retain actual
 request messages in private attempt evidence. The bridge and headless source captures also record exact system/user
 SHA-256 hashes. Metadata is excluded from model-visible observation text. Operator guidance remains separate.
 
-Held-out introductions are evaluation-only: source exports reject them, and bridge resets reject them with `split: train`.
+Held-out wordings are evaluation-only: source exports reject them, and bridge resets reject them with `split: train`.
 Source exports accept `--prompt-variant` and `--prompt-seed`, require clean committed source and at least ten games, and
-mark candidates `review_required`. Shared dataset admission still requires independent review. Seed families group all
+mark candidates `review_required`. Mixed exports advance the wording seed once per game and record each resolved selection.
+The importer owns dataset splits; raw-corpus coverage alone does not establish five-wording coverage in training. Shared dataset admission still requires independent review. Seed families group all
 wordings and game variants, preventing duplicate scenarios from crossing training and evaluation splits.
 
 Run complete wording workflows with `python tools/test_prompt_games.py`; `--original <checkout>` additionally compares

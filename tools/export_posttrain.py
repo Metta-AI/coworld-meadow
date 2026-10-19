@@ -51,7 +51,15 @@ def export(args: argparse.Namespace) -> None:
     root = args.output.resolve()
     root.mkdir(mode=0o700)
     runs = []
-    for seed in range(args.first_seed, args.first_seed + args.games):
+    for offset, seed in enumerate(range(args.first_seed, args.first_seed + args.games)):
+        episode_selection = PromptConfig.model_validate(
+            {
+                "promptVariant": selection.selection,
+                "promptSeed": selection.seed + offset
+                if selection.selection == "mixed"
+                else selection.seed,
+            }
+        ).resolve()
         config = MeadowConfig.model_validate(
             {**base, "num_players": len(base["players"]), "seed": seed}
         )
@@ -61,9 +69,7 @@ def export(args: argparse.Namespace) -> None:
             else SustainablePolicy(quota=(0, 1, 1, 2, 3)[(seed + slot) % 5])
             for slot in range(config.num_players)
         ]
-        episode_id = (
-            f"meadow-{args.variant}-{seed}-{selection.variant}-{selection.seed}"
-        )
+        episode_id = f"meadow-{args.variant}-{seed}-{episode_selection.variant}-{episode_selection.seed}"
         trajectory = Trajectory(
             episode_id=episode_id,
             game_version="source-" + revision,
@@ -76,13 +82,14 @@ def export(args: argparse.Namespace) -> None:
             policies,
             [entry["name"] for entry in base["players"]],
             trajectory=trajectory,
-            prompt_selection=selection,
+            prompt_selection=episode_selection,
         )
         trajectory.write(root / "episodes" / (episode_id + ".jsonl"))
         runs.append(
             {
                 "episode_id": episode_id,
                 "seed": seed,
+                "prompt_selection": episode_selection.model_dump(),
                 "seed_family": f"meadow-{seed}",
                 "configuration": config.model_dump(),
                 "teacher_policies": [

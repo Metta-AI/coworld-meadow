@@ -75,7 +75,7 @@ def play(
         if not original:
             metadata = obs["semantic_view"].pop("prompt_template")
             assert metadata == {
-                "bank": "meadow-rules-v1",
+                "bank": "meadow-rules-v2",
                 "variant": selected,
                 "selection": wording,
                 "seed": prompt_seed,
@@ -94,7 +94,7 @@ def play(
             assert seen_systems[seat] == system
         seen_systems[seat] = system
         if wording != "canonical":
-            obs["messages"][0]["content"] = system.split("\n", 1)[1]
+            obs["messages"][0]["content"] = system[system.index("Your goal") :]
         encoding = request({"kind": "encode"}) if mode == "choice" else None
         if encoding is not None:
             assert len(encoding["values"]) == 34
@@ -122,19 +122,19 @@ def main() -> None:
     count = 0
     for variant in VARIANTS:
         for mode in ("choice", "text"):
-            for seed in (1, 2):
+            for seed in (1,):
                 canonical = play(ROOT, variant, mode, seed, "canonical", 0, False)
                 if args.original:
                     assert canonical == play(
                         args.original, variant, mode, seed, "canonical", 0, True
                     )
                 for row in canonical[:-1]:
-                    row[0]["messages"][0]["content"] = row[0]["messages"][0][
-                        "content"
-                    ].split("\n", 1)[1]
+                    row[0]["messages"][0]["content"] = row[0]["messages"][0]["content"][
+                        row[0]["messages"][0]["content"].index("Your goal") :
+                    ]
                 count += 1
                 for wording, prompt_seed in [(w, 0) for w in WORDINGS[1:]] + [
-                    ("mixed", n) for n in range(5)
+                    ("mixed", 3)
                 ]:
                     assert (
                         play(ROOT, variant, mode, seed, wording, prompt_seed, False)

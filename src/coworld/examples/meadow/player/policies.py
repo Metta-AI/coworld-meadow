@@ -145,17 +145,19 @@ class EnforcerPolicy:
 
 LLM_SYSTEM_PROMPT = """{introduction}
 
-Rules:
-- A shared stock (capacity {stock_capacity}) regrows each round by {regrowth_rate} * stock * (1 - stock/capacity).
-- If the stock ever drops below {collapse_threshold}, it is dead FOREVER: no regrowth for the rest of the game.
-- Each round, every player simultaneously harvests an integer 0..{max_harvest}.
-- If total demand exceeds the stock, the remainder is split pro-rata.
-- The game lasts {rounds} rounds. Your score is everything you harvest.{sanction_rules}{norm_line}
+{rules}
 
 Your goal is to maximize your own final score.{strategy}
 
 Each turn you receive the current game state as JSON. Reply with ONLY one JSON object, no other text:
 {{"harvest": <int 0..{max_harvest}>{sanction_field}{message_field}}}"""
+
+LLM_RULES = """Rules:
+- A shared stock (capacity {stock_capacity}) regrows each round by {regrowth_rate} * stock * (1 - stock/capacity).
+- If the stock ever drops below {collapse_threshold}, it is dead FOREVER: no regrowth for the rest of the game.
+- Each round, every player simultaneously harvests an integer 0..{max_harvest}.
+- If total demand exceeds the stock, the remainder is split pro-rata.
+- The game lasts {rounds} rounds. Your score is everything you harvest.{sanction_rules}{norm_line}"""
 
 LLM_SANCTION_RULES = "\n- You may also sanction one player per round: you pay {sanction_cost}, they lose {sanction_burn}."
 # Long enough to ride out sustained shared-quota throttling (see BEDROCK.md): a seat that
@@ -183,7 +185,8 @@ def system_prompt(
     )
     ledger = obs.get("ledger")
     name = ledger[obs["slot"]]["name"] if ledger else f"P{obs['slot']}"
-    return LLM_SYSTEM_PROMPT.format(
+    template = LLM_SYSTEM_PROMPT.replace("{rules}", selection.rules(LLM_RULES))
+    return template.format(
         introduction=selection.introduction(name, obs["slot"], obs["num_players"]),
         stock_capacity=obs["stock_capacity"],
         regrowth_rate=obs["regrowth_rate"],
