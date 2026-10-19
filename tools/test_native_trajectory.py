@@ -96,7 +96,10 @@ def main() -> None:
                 self.end_headers()
                 self.wfile.write(payload)
 
-        native = ThreadingHTTPServer(("127.0.0.1", 0), Native)
+        native = ThreadingHTTPServer(("127.0.0.1", 0), Native, bind_and_activate=False)
+        native.request_queue_size = 32
+        native.server_bind()
+        native.server_activate()
         threading.Thread(target=native.serve_forever, daemon=True).start()
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
