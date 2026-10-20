@@ -28,7 +28,12 @@ def test_complete_variant_uses_real_scores(variant: str, rounds: int) -> None:
     decision = session.reset({"seed": "training-proof", "players": 8})
     count = 0
     while decision["kind"] != "terminal":
-        assert decision["semantic_view"] == session.player_view()
+        assert decision["semantic_view"] == {
+            **session.player_view(),
+            "prompt_template": session.selection.metadata(
+                decision["messages"][0]["content"], decision["messages"][1]["content"]
+            ),
+        }
         assert len(session.encode()["values"]) == 34
         assert [len(head["choices"]) for head in session.encode()["action_heads"]] == [
             4,

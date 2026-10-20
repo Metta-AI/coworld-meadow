@@ -27,6 +27,8 @@ from coworld.examples.meadow.player.policies import (
     system_prompt,
 )
 
+from coworld.examples.meadow.shared.prompts import PromptConfig
+
 MANIFEST = ROOT / "src/coworld/examples/meadow/coworld_manifest_template.json"
 MAX_PLAYERS = 12
 
@@ -36,7 +38,9 @@ def compact(value: object) -> str:
 
 
 class TrainingSession:
-    def __init__(self, variant: str, mode: str, rounds: int | None, operator_prompt: str = ""):
+    def __init__(
+        self, variant: str, mode: str, rounds: int | None, operator_prompt: str = ""
+    ):
         self.operator_prompt = operator_prompt
         manifest = json.loads(MANIFEST.read_text())
         self.base = (
@@ -52,6 +56,13 @@ class TrainingSession:
         self.rounds = rounds
 
     def reset(self, request: dict[str, object]) -> dict[str, object]:
+        self.selection = PromptConfig.model_validate(request).resolve()
+        if (
+            "split" in request
+            and request["split"] == "train"
+            and self.selection.variant.startswith("heldout-")
+        ):
+            raise ValueError("held-out wording is evaluation only")
         players = int(request["players"])
         if players != len(self.base["players"]):
             raise ValueError(f"Variant requires {len(self.base['players'])} seats")
@@ -92,7 +103,9 @@ class TrainingSession:
         messages = [
             {
                 "role": "system",
-                "content": system_prompt(view, self.operator_prompt),
+                "content": system_prompt(
+                    view, self.operator_prompt, selection=self.selection
+                ),
             },
             {
                 "role": "user",
@@ -105,6 +118,9 @@ class TrainingSession:
                 ),
             },
         ]
+        view["prompt_template"] = self.selection.metadata(
+            messages[0]["content"], messages[1]["content"]
+        )
         candidates = {
             f"{harvest}:{target}": {
                 "decision": {"harvest": harvest, "sanction": target},
@@ -268,7 +284,9 @@ def main() -> None:
     parser.add_argument("--rounds", type=int)
     parser.add_argument("--operator-prompt", default="")
     args = parser.parse_args()
-    session = TrainingSession(args.variant, args.mode, args.rounds, args.operator_prompt)
+    session = TrainingSession(
+        args.variant, args.mode, args.rounds, args.operator_prompt
+    )
     for line in sys.stdin:
         request = json.loads(line)
         match request["kind"]:

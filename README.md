@@ -55,6 +55,40 @@ The bridge reads one JSON object per line. Start with
 `{"kind":"reset","seed":"example","players":8}`; each decision carries the `decision_id` for a `step`
 command. `--rounds N` fixes a shorter curriculum. A terminal message reports the game's per-seat scores.
 
+## Episode prompt selection
+
+Game configuration and bridge reset requests accept `promptVariant`: `canonical` (default), `plain`, `numbered`,
+`questions`, `reordered`, `heldout-briefing`, `heldout-reference`, or `mixed`. Mixed selection requires a nonnegative
+`promptSeed`; its remainder modulo five selects a training wording. Selection stays fixed throughout an episode
+and does not alter simulation randomness. The v2 bank varies resource, collapse, allocation, and scoring explanations and their order. Canonical prompts,
+observations, action schemas, posted notices, and operator instructions retain their existing bytes.
+
+Native observations carry `prompt_configuration`. Native players validate that selection stays fixed and retain actual
+request messages in private attempt evidence. The bridge and headless source captures also record exact system/user
+SHA-256 hashes. Metadata is excluded from model-visible observation text. Operator guidance remains separate.
+
+Held-out wordings are evaluation-only: source exports reject them, and bridge resets reject them with `split: train`.
+Source exports accept `--prompt-variant` and `--prompt-seed`, require clean committed source and at least ten games, and
+mark candidates `review_required`. Mixed exports advance the wording seed once per game and record each resolved selection.
+The importer owns dataset splits; check wording counts in its training output before using a mixed corpus.
+With prompt seed zero, Meadow seeds 1–10 leave `questions` entirely in validation under the default 20% hash split.
+Seeds 1–20 retain all five training wordings in each maintained variant. The seat-zero import contains 840 training
+and 360 validation examples per variant. Other seed ranges, split fractions, or target filters require their own coverage check.
+
+```sh
+PYTHONPATH=src python tools/export_posttrain.py /tmp/meadow-mixed-teachers --variant institutions --games 20 --prompt-variant mixed --prompt-seed 0
+```
+
+The ten-game minimum qualifies source execution; it does not guarantee post-import wording coverage.
+Shared dataset admission still requires independent review. Seed families group all wordings and game variants,
+preventing duplicate scenarios from crossing training and evaluation splits.
+
+Run complete wording workflows with `python tools/test_prompt_games.py`; `--original <checkout>` additionally compares
+canonical whole games against the original source. Native proof uses
+`python tools/test_native_trajectory.py <source-sha> <output> --variant default --wording mixed --prompt-seed 3 --mode accepted`.
+Omitting `--variant` runs the existing short diagnostic configuration; it does not establish published-budget parity.
+These fixtures verify protocol correctness, not model quality or prevention of learning collapse.
+
 ## Run it
 
 The engine is dependency-light (`pip install -r requirements.txt`); the containerized path needs Docker and the
