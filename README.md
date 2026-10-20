@@ -142,3 +142,7 @@ Published player images may send bare harvest/sanction/message actions. The serv
 alongside native action envelopes; bare actions have unknown provenance and are never relabeled as model or teacher samples.
 Run `python tools/test_published_actions.py /tmp/meadow-published-actions` for a complete mixed-client game.
 Old Bedrock player images must be rebuilt with the native sidecar player; game upgrades cannot supply their missing provider configuration.
+
+The published image also contains the native LLM player. Create a separate policy using
+`python -m coworld.examples.meadow.player.player llm` and enable its hosted LLM sidecar.
+Certification uses the bundled scripted policies without inference spending.

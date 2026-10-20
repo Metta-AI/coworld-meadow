@@ -192,16 +192,6 @@
   },
   "player": [
     {
-      "id": "llm",
-      "name": "Meadow Native LLM Player",
-      "type": "player",
-      "image": "{{MEADOW_IMAGE}}",
-      "run": ["python", "-m", "coworld.examples.meadow.player.player"],
-      "env": {"COWORLD_MEADOW_POLICY": "llm"},
-      "source_url": "https://github.com/Metta-AI/coworld-meadow/tree/main/src/coworld/examples/meadow/player",
-      "description": "Native sidecar player; set COWORLD_MEADOW_PROMPT for strategy and COWORLD_LLM_MODEL for model selection. No direct AWS credentials required."
-    },
-    {
       "id": "sustainable",
       "name": "Sustainable Harvester",
       "type": "player",
@@ -383,7 +373,7 @@
       ]
     },
     "players": [
-      { "player_id": "llm", "env": { "COWORLD_MEADOW_POLICY": "sustainable" } },
+      { "player_id": "sustainable" },
       { "player_id": "sustainable" },
       { "player_id": "reciprocator" },
       { "player_id": "reciprocator" },
