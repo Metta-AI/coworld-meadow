@@ -33,6 +33,7 @@ from coworld.examples.meadow.game.engine import (
     episode_results,
     new_state,
     observation,
+    parse_action,
     step,
 )
 from coworld.examples.meadow.shared.artifact_io import (
@@ -250,11 +251,13 @@ async def player(websocket: WebSocket) -> None:
 
     try:
         async for message in websocket.iter_json():
-            if message["type"] == "attempt":
+            if "type" in message and message["type"] == "attempt":
                 session.capture_attempt(slot, AttemptProgress.model_validate(message))
                 continue
             if not session.done and session.engine.round < CONFIG.rounds:
-                decision = PlayerDecision.model_validate(message)
+                # Published players submit bare actions without native attempt metadata.
+                decision = (PlayerDecision.model_validate(message) if "type" in message else
+                            PlayerDecision(round=session.engine.round, action=parse_action(message, slot, CONFIG)))
                 if decision.round == session.engine.round:
                     session.pending[slot] = apply_player_decision(decision, slot, CONFIG)
     finally:
