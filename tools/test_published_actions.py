@@ -9,6 +9,10 @@ from pathlib import Path
 
 import websockets
 
+from coworld.examples.meadow.game.engine import MeadowConfig, parse_action
+from coworld.examples.meadow.shared.decision import PlayerDecision
+from coworld.examples.meadow.shared.trajectory import Attempt
+
 
 async def main():
     root = Path(__file__).resolve().parents[1]
@@ -41,8 +45,15 @@ async def main():
                             view = json.loads(raw)
                             if view["type"] == "final":
                                 return
-                            action = {"harvest": 1}
-                            packet = action if seat < 4 else {"type": "action", "round": view["round"], "action": action}
+                            action = {"harvest": 1, "message": "x" * 139 + " " + "beyond limit"}
+                            if seat < 4:
+                                packet = action
+                            else:
+                                attempt = Attempt(policy="public-contract", origin="unknown", prompt=None,
+                                                  response=json.dumps(action))
+                                packet = PlayerDecision(round=view["round"],
+                                    action=parse_action(action, seat, MeadowConfig(num_players=8)),
+                                    attempts=[attempt], selected_attempt_id=attempt.attempt_id).model_dump()
                             await ws.send(json.dumps(packet))
                 await asyncio.gather(*(play(seat) for seat in range(8)))
                 assert await game.wait() == 0
@@ -51,6 +62,7 @@ async def main():
             events = [json.loads(line) for line in (output / "trajectory.jsonl").read_text().splitlines()]
             decisions = [event for event in events if event["event_type"] == "decision"]
             assert len(decisions) == 480
+            assert all(d["executed_action"]["message"] == "x" * 139 for d in decisions)
             assert all(a["origin"] == "unknown" for d in decisions for a in d["attempts"])
             assert (output / "replay.json").is_file()
             print("480 decisions completed; bare and enveloped actions score equally, provenance remains unknown")

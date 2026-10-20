@@ -143,7 +143,7 @@ def parse_action(raw: object, slot: int, config: MeadowConfig) -> RoundAction:
     if config.chat_enabled:
         message_raw = raw.get("message")
         if isinstance(message_raw, str) and message_raw.strip():
-            message = message_raw.strip()[: config.chat_max_chars]
+            message = message_raw.strip()[: config.chat_max_chars].rstrip()
 
     return RoundAction(harvest=harvest, sanction=sanction, message=message)
 
