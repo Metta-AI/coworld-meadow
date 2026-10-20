@@ -70,8 +70,18 @@ SHA-256 hashes. Metadata is excluded from model-visible observation text. Operat
 Held-out wordings are evaluation-only: source exports reject them, and bridge resets reject them with `split: train`.
 Source exports accept `--prompt-variant` and `--prompt-seed`, require clean committed source and at least ten games, and
 mark candidates `review_required`. Mixed exports advance the wording seed once per game and record each resolved selection.
-The importer owns dataset splits; raw-corpus coverage alone does not establish five-wording coverage in training. Shared dataset admission still requires independent review. Seed families group all
-wordings and game variants, preventing duplicate scenarios from crossing training and evaluation splits.
+The importer owns dataset splits; check wording counts in its training output before using a mixed corpus.
+With prompt seed zero, Meadow seeds 1–10 leave `questions` entirely in validation under the default 20% hash split.
+Seeds 1–20 retain all five training wordings in each maintained variant. The seat-zero import contains 840 training
+and 360 validation examples per variant. Other seed ranges, split fractions, or target filters require their own coverage check.
+
+```sh
+PYTHONPATH=src python tools/export_posttrain.py /tmp/meadow-mixed-teachers --variant institutions --games 20 --prompt-variant mixed --prompt-seed 0
+```
+
+The ten-game minimum qualifies source execution; it does not guarantee post-import wording coverage.
+Shared dataset admission still requires independent review. Seed families group all wordings and game variants,
+preventing duplicate scenarios from crossing training and evaluation splits.
 
 Run complete wording workflows with `python tools/test_prompt_games.py`; `--original <checkout>` additionally compares
 canonical whole games against the original source. Native proof uses
