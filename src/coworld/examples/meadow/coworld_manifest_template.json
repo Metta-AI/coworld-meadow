@@ -18,9 +18,33 @@
       "additionalProperties": false,
       "required": ["tokens", "players", "rounds"],
       "properties": {
-        "promptVariant": {"type": "string", "default": "canonical", "enum": ["canonical", "plain", "numbered", "questions", "reordered", "heldout-briefing", "heldout-reference", "mixed"], "description": "Episode-stable introduction. Heldout wordings are evaluation-only."},
-        "promptSeed": {"type": "integer", "minimum": 0, "default": 0, "description": "Independent wording seed; mixed requires an explicit value."},
-        "seed": {"type": "integer", "minimum": 0, "default": 0, "description": "Private corpus family identifier; rules are deterministic."},
+        "promptVariant": {
+          "type": "string",
+          "default": "canonical",
+          "enum": [
+            "canonical",
+            "plain",
+            "numbered",
+            "questions",
+            "reordered",
+            "heldout-briefing",
+            "heldout-reference",
+            "mixed"
+          ],
+          "description": "Episode-stable introduction. Heldout wordings are evaluation-only."
+        },
+        "promptSeed": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Independent wording seed; mixed requires an explicit value."
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Policy sampling seed; changing it does not create a distinct physical lake."
+        },
         "tokens": {
           "type": "array",
           "minItems": 2,
@@ -127,7 +151,14 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "additionalProperties": false,
-      "required": ["scores", "total_harvested", "welfare", "final_stock", "collapse_round", "rounds"],
+      "required": [
+        "scores",
+        "total_harvested",
+        "welfare",
+        "final_stock",
+        "collapse_round",
+        "rounds"
+      ],
       "properties": {
         "scores": {
           "type": "array",
