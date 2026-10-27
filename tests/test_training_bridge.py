@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from coworld.examples.meadow.shared.scenarios import scenario_family
 from tools.training_bridge import TrainingSession
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +31,7 @@ def test_complete_variant_uses_real_scores(variant: str, rounds: int) -> None:
     while decision["kind"] != "terminal":
         assert decision["semantic_view"] == {
             **session.player_view(),
+            "scenario_family": scenario_family(session.config),
             "prompt_template": session.selection.metadata(
                 decision["messages"][0]["content"], decision["messages"][1]["content"]
             ),

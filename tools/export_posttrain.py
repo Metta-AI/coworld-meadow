@@ -1,6 +1,5 @@
 """Export whole production Meadow teacher episodes; use the shared importer for dataset splits."""
 
-# ruff: noqa: E402
 from __future__ import annotations
 
 import argparse
@@ -16,8 +15,9 @@ sys.path.insert(0, str(ROOT / "src"))
 from coworld.examples.meadow.game.engine import MeadowConfig
 from coworld.examples.meadow.headless import run_episode
 from coworld.examples.meadow.player.policies import EnforcerPolicy, SustainablePolicy
+from coworld.examples.meadow.shared.prompts import TRAIN, PromptConfig
+from coworld.examples.meadow.shared.scenarios import scenario_family
 from coworld.examples.meadow.shared.trajectory import Trajectory
-from coworld.examples.meadow.shared.prompts import PromptConfig, TRAIN
 
 MANIFEST = ROOT / "src/coworld/examples/meadow/coworld_manifest_template.json"
 
@@ -75,7 +75,7 @@ def export(args: argparse.Namespace) -> None:
             game_version="source-" + revision,
             source_revision=revision,
             image_digest=None,
-            seed_family=f"meadow-{seed}",
+            seed_family=scenario_family(config),
         )
         state = run_episode(
             config,
@@ -90,7 +90,7 @@ def export(args: argparse.Namespace) -> None:
                 "episode_id": episode_id,
                 "seed": seed,
                 "prompt_selection": episode_selection.model_dump(),
-                "seed_family": f"meadow-{seed}",
+                "seed_family": scenario_family(config),
                 "configuration": config.model_dump(),
                 "teacher_policies": [
                     {
