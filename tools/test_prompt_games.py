@@ -4,9 +4,9 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from typing import TextIO, cast
 
 VARIANTS = ("certification", "default", "anonymous", "institutions", "no-chat")
@@ -73,6 +73,9 @@ def play(
     while obs["kind"] != "terminal":
         system, user = (message["content"] for message in obs["messages"])
         if not original:
+            family = obs["semantic_view"].pop("scenario_family")
+            assert family.startswith("meadow-")
+            assert "scenario_family" not in json.loads(user)
             metadata = obs["semantic_view"].pop("prompt_template")
             assert metadata == {
                 "bank": "meadow-rules-v2",
@@ -84,6 +87,7 @@ def play(
             }
             if mode == "choice":
                 obs["typed_question"]["state"].pop("prompt_template")
+                assert obs["typed_question"]["state"].pop("scenario_family") == family
         assert json.loads(user) == {
             k: v
             for k, v in obs["semantic_view"].items()
@@ -160,6 +164,7 @@ def main() -> None:
             + "\n",
             text=True,
             capture_output=True,
+            check=False,
         )
         assert (
             result.returncode != 0
