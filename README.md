@@ -19,7 +19,7 @@ Societies of 8 Claude seats almost never die of greed. They converge on a plausi
 one, watch the public ledger confirm that everyone chose the same number, and then defend the number as a norm —
 narrating "perfect cooperation" while the stock drains to zero. Removing the public ledger takes survival from 0/10
 to 8/10 episodes; a posted quota (backed by never-used sanctions) takes it to 10/10 at 96.7% of the exact optimum;
-and a mixed haiku+sonnet population inherits the *most confident* seat's error, not the most correct seat's answer.
+and a mixed haiku+sonnet population inherits the _most confident_ seat's error, not the most correct seat's answer.
 
 ## Repository layout
 
@@ -80,8 +80,12 @@ PYTHONPATH=src python tools/export_posttrain.py /tmp/meadow-mixed-teachers --var
 ```
 
 The ten-game minimum qualifies source execution; it does not guarantee post-import wording coverage.
-Shared dataset admission still requires independent review. Seed families group all wordings and game variants,
-preventing duplicate scenarios from crossing training and evaluation splits.
+Shared dataset admission still requires independent review. Physical scenario families group replicas across wordings, policy seeds, and institutional treatments.
+The engine does not use `seed` to change the lake: changing that number only changes scripted partners.
+The family therefore hashes resource settings, roster size, and the round horizon, excluding seed and wording.
+The historical seed-split counts above describe the earlier exporter; they do not establish independent scenario validation.
+A fixed-resource collection now has one family and cannot supply both training and validation.
+Freeze distinct resource configurations or horizons before constructing an independent evaluation panel.
 
 Run complete wording workflows with `python tools/test_prompt_games.py`; `--original <checkout>` additionally compares
 canonical whole games against the original source. Native proof uses

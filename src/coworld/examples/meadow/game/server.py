@@ -50,6 +50,7 @@ from coworld.examples.meadow.shared.decision import (
 )
 from coworld.examples.meadow.shared.log_shipper import get_logger
 from coworld.examples.meadow.shared.prompts import PromptConfig
+from coworld.examples.meadow.shared.scenarios import scenario_family
 from coworld.examples.meadow.shared.trajectory import (
     Attempt,
     DecisionRecord,
@@ -64,11 +65,15 @@ GAME_PORT = int(os.environ.get("COGAME_PORT", "8080"))
 # websocket probes) can still read the final state: an all-scripted episode can
 # finish in under a second, and exiting immediately races anything that
 # connected while the game was live.
-POST_GAME_LINGER_SECONDS = float(os.environ.get("COWORLD_MEADOW_POST_GAME_LINGER_SECONDS", "30"))
+POST_GAME_LINGER_SECONDS = float(
+    os.environ.get("COWORLD_MEADOW_POST_GAME_LINGER_SECONDS", "30")
+)
 # Hard ceiling on the post-game hold: even with a viewer attached (the hosted
 # certifier holds /global open while it waits for player pods, which can take
 # a minute on cold nodes), the server eventually exits.
-POST_GAME_MAX_LINGER_SECONDS = float(os.environ.get("COWORLD_MEADOW_POST_GAME_MAX_LINGER_SECONDS", "90"))
+POST_GAME_MAX_LINGER_SECONDS = float(
+    os.environ.get("COWORLD_MEADOW_POST_GAME_MAX_LINGER_SECONDS", "90")
+)
 
 RAW_CONFIG: dict[str, Any] = json.loads(read_data(os.environ["COGAME_CONFIG_URI"]))
 RESULTS_URI = os.environ["COGAME_RESULTS_URI"]
@@ -79,12 +84,16 @@ PLAYER_NAMES: list[str] = [player["name"] for player in RAW_CONFIG["players"]]
 PROMPT_SELECTION = PromptConfig.model_validate(RAW_CONFIG).resolve()
 CONFIG = MeadowConfig.model_validate({**RAW_CONFIG, "num_players": len(TOKENS)})
 ROUND_SECONDS = float(RAW_CONFIG.get("round_seconds", 20.0))
-PLAYER_CONNECT_TIMEOUT_SECONDS = float(RAW_CONFIG.get("player_connect_timeout_seconds", 180))
+PLAYER_CONNECT_TIMEOUT_SECONDS = float(
+    RAW_CONFIG.get("player_connect_timeout_seconds", 180)
+)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    timeout_task = asyncio.create_task(_start_after_player_connect_timeout()) if TOKENS else None
+    timeout_task = (
+        asyncio.create_task(_start_after_player_connect_timeout()) if TOKENS else None
+    )
     yield
     if timeout_task is not None:
         timeout_task.cancel()
@@ -109,14 +118,16 @@ class GameSession:
         self.global_viewers = 0
         self.progress: dict[tuple[int, int], list[Attempt]] = {}
         self.trajectory = (
-            Trajectory(episode_id=os.environ["COWORLD_EPISODE_ID"],
+            Trajectory(
+                episode_id=os.environ["COWORLD_EPISODE_ID"],
                 game_version=os.environ["COWORLD_GAME_VERSION"],
                 source_revision=os.environ["COWORLD_SOURCE_REVISION"],
                 image_digest=os.environ.get("COWORLD_IMAGE_DIGEST"),
-                seed_family="meadow-" + str(CONFIG.seed))
-            if os.environ.get("COGAME_SAVE_TRAJECTORY_URI") else None
+                seed_family=scenario_family(CONFIG),
+            )
+            if os.environ.get("COGAME_SAVE_TRAJECTORY_URI")
+            else None
         )
-
 
     def capture_attempt(self, slot: int, progress: AttemptProgress) -> None:
         """Preserve known started and late attempts without changing an executed decision."""
@@ -132,13 +143,27 @@ class GameSession:
         attempts = self.progress.setdefault((progress.round, slot), [])
         if self.trajectory is not None:
             for record in self.trajectory.records:
-                if isinstance(record, DecisionRecord) and record.decision_id == f"round-{progress.round}-seat-{slot}":
+                if (
+                    isinstance(record, DecisionRecord)
+                    and record.decision_id == f"round-{progress.round}-seat-{slot}"
+                ):
                     if record.selected_attempt_id == attempt.attempt_id:
                         return
                     attempts = record.attempts
                     if record.action_status == "fallback":
-                        attempt.rejection_reason = "completed after round deadline" if attempt.latency_ms is not None else "native call in progress at round deadline"
-        existing = next((index for index, item in enumerate(attempts) if item.attempt_id == attempt.attempt_id), None)
+                        attempt.rejection_reason = (
+                            "completed after round deadline"
+                            if attempt.latency_ms is not None
+                            else "native call in progress at round deadline"
+                        )
+        existing = next(
+            (
+                index
+                for index, item in enumerate(attempts)
+                if item.attempt_id == attempt.attempt_id
+            ),
+            None,
+        )
         if existing is None:
             attempts.append(attempt)
         else:
@@ -175,7 +200,9 @@ async def global_viewer(websocket: WebSocket) -> None:
     try:
         sender = asyncio.create_task(_send_global_snapshots(websocket))
         receiver = asyncio.create_task(_drain_messages(websocket))
-        done, pending = await asyncio.wait({sender, receiver}, return_when=asyncio.FIRST_COMPLETED)
+        done, pending = await asyncio.wait(
+            {sender, receiver}, return_when=asyncio.FIRST_COMPLETED
+        )
         for task in pending:
             task.cancel()
         await asyncio.gather(*pending, return_exceptions=True)
@@ -206,7 +233,10 @@ async def _send_global_snapshots(websocket: WebSocket) -> None:
         await asyncio.sleep(0.5)
         now = loop.time()
         progress = (session.engine.round, session.done, session.engine.collapsed)
-        changed = progress != sent_progress and now - sent_at >= GLOBAL_MIN_SEND_INTERVAL_SECONDS
+        changed = (
+            progress != sent_progress
+            and now - sent_at >= GLOBAL_MIN_SEND_INTERVAL_SECONDS
+        )
         if changed or now - sent_at >= GLOBAL_KEEPALIVE_SECONDS:
             await websocket.send_json(_snapshot())
             sent_at = now
@@ -242,7 +272,9 @@ async def player(websocket: WebSocket) -> None:
 
     await websocket.accept()
     session.players[slot] = websocket
-    logger.info("player slot %d connected (%d/%d)", slot, len(session.players), len(TOKENS))
+    logger.info(
+        "player slot %d connected (%d/%d)", slot, len(session.players), len(TOKENS)
+    )
     await websocket.send_json(_player_observation(slot))
     if len(session.players) == len(TOKENS) and not session.started:
         session.started = True
@@ -256,10 +288,18 @@ async def player(websocket: WebSocket) -> None:
                 continue
             if not session.done and session.engine.round < CONFIG.rounds:
                 # Published players submit bare actions without native attempt metadata.
-                decision = (PlayerDecision.model_validate(message) if "type" in message else
-                            PlayerDecision(round=session.engine.round, action=parse_action(message, slot, CONFIG)))
+                decision = (
+                    PlayerDecision.model_validate(message)
+                    if "type" in message
+                    else PlayerDecision(
+                        round=session.engine.round,
+                        action=parse_action(message, slot, CONFIG),
+                    )
+                )
                 if decision.round == session.engine.round:
-                    session.pending[slot] = apply_player_decision(decision, slot, CONFIG)
+                    session.pending[slot] = apply_player_decision(
+                        decision, slot, CONFIG
+                    )
     finally:
         if session.players.get(slot) is websocket:
             del session.players[slot]
@@ -287,9 +327,18 @@ async def _play_game() -> None:
                 break
             await asyncio.sleep(0.05)
 
-        decisions = [session.pending.get(slot, PlayerDecision(round=session.engine.round,
-            action=RoundAction(), attempts=session.progress.get((session.engine.round, slot), []),
-            fallback_origin="missing-or-late-player")) for slot in range(CONFIG.num_players)]
+        decisions = [
+            session.pending.get(
+                slot,
+                PlayerDecision(
+                    round=session.engine.round,
+                    action=RoundAction(),
+                    attempts=session.progress.get((session.engine.round, slot), []),
+                    fallback_origin="missing-or-late-player",
+                ),
+            )
+            for slot in range(CONFIG.num_players)
+        ]
         views = [_player_observation(slot) for slot in range(CONFIG.num_players)]
         actions = [decision.action for decision in decisions]
         session.pending.clear()
@@ -297,12 +346,24 @@ async def _play_game() -> None:
         if session.trajectory is not None:
             for slot, decision in enumerate(decisions):
                 actual = executed_action(record, slot)
-                selected = next((attempt for attempt in decision.attempts
-                    if attempt.attempt_id == decision.selected_attempt_id), None)
-                session.trajectory.record(decision_id=f"round-{record.round}-seat-{slot}",
-                    seat=slot, observation=views[slot], prompt=selected.prompt if selected else None,
-                    attempts=decision.attempts, executed_action=actual.model_dump(),
-                    fallback_origin=decision.fallback_origin, terminal=session.engine.round == CONFIG.rounds)
+                selected = next(
+                    (
+                        attempt
+                        for attempt in decision.attempts
+                        if attempt.attempt_id == decision.selected_attempt_id
+                    ),
+                    None,
+                )
+                session.trajectory.record(
+                    decision_id=f"round-{record.round}-seat-{slot}",
+                    seat=slot,
+                    observation=views[slot],
+                    prompt=selected.prompt if selected else None,
+                    attempts=decision.attempts,
+                    executed_action=actual.model_dump(),
+                    fallback_origin=decision.fallback_origin,
+                    terminal=session.engine.round == CONFIG.rounds,
+                )
         session.frames.append({**record.model_dump(), "player_names": PLAYER_NAMES})
         if session.engine.round < CONFIG.rounds:
             await _broadcast_observations()
@@ -311,23 +372,46 @@ async def _play_game() -> None:
     if session.trajectory is not None:
         drain_deadline = loop.time() + session.round_seconds
         while loop.time() < drain_deadline and any(
-            attempt.latency_ms is None for record in session.trajectory.records
-            if isinstance(record, DecisionRecord) for attempt in record.attempts
+            attempt.latency_ms is None
+            for record in session.trajectory.records
+            if isinstance(record, DecisionRecord)
+            for attempt in record.attempts
         ):
             await asyncio.sleep(0.05)
-        session.trajectory.finish(outcome=results,
-            participant_outcomes={str(slot): {"score": round(score, 3)} for slot, score in enumerate(session.engine.scores)},
-            completed=session.engine.round == CONFIG.rounds)
+        session.trajectory.finish(
+            outcome=results,
+            participant_outcomes={
+                str(slot): {"score": round(score, 3)}
+                for slot, score in enumerate(session.engine.scores)
+            },
+            completed=session.engine.round == CONFIG.rounds,
+        )
         uri = os.environ["COGAME_SAVE_TRAJECTORY_URI"]
         if uri.startswith("file://"):
             from urllib.parse import unquote, urlparse
 
-            await asyncio.to_thread(session.trajectory.write, Path(unquote(urlparse(uri).path)))
+            await asyncio.to_thread(
+                session.trajectory.write, Path(unquote(urlparse(uri).path))
+            )
         else:
-            body = "\n".join(record.model_dump_json() for record in session.trajectory.records) + "\n"
-            await asyncio.to_thread(write_data, uri, body, content_type="application/x-ndjson",
-                http_method=artifact_method("COGAME_SAVE_TRAJECTORY_METHOD"))
-    logger.info("game finished after %d rounds, scores=%s", session.engine.round, results["scores"])
+            body = (
+                "\n".join(
+                    record.model_dump_json() for record in session.trajectory.records
+                )
+                + "\n"
+            )
+            await asyncio.to_thread(
+                write_data,
+                uri,
+                body,
+                content_type="application/x-ndjson",
+                http_method=artifact_method("COGAME_SAVE_TRAJECTORY_METHOD"),
+            )
+    logger.info(
+        "game finished after %d rounds, scores=%s",
+        session.engine.round,
+        results["scores"],
+    )
     # Artifact writes are blocking HTTP; off the event loop so websocket pings
     # (the hosted certifier probes /global right around game end) still answer.
     await asyncio.to_thread(
@@ -347,11 +431,15 @@ async def _play_game() -> None:
 
     session.done = True
     for slot, websocket in session.players.items():
-        await websocket.send_json({**_player_observation(slot), "type": "final", "done": True})
+        await websocket.send_json(
+            {**_player_observation(slot), "type": "final", "done": True}
+        )
     # Linger, extending while any global viewer is still attached (bounded).
     linger_until = loop.time() + POST_GAME_LINGER_SECONDS
     hard_stop = loop.time() + POST_GAME_MAX_LINGER_SECONDS
-    while loop.time() < hard_stop and (loop.time() < linger_until or session.global_viewers > 0):
+    while loop.time() < hard_stop and (
+        loop.time() < linger_until or session.global_viewers > 0
+    ):
         await asyncio.sleep(0.5)
     server.should_exit = True
     await asyncio.sleep(0.5)
@@ -363,7 +451,9 @@ async def _broadcast_observations() -> None:
 
 
 def _player_observation(slot: int) -> dict[str, Any]:
-    view = observation(session.engine, CONFIG, slot, PLAYER_NAMES, session.round_seconds)
+    view = observation(
+        session.engine, CONFIG, slot, PLAYER_NAMES, session.round_seconds
+    )
     view["prompt_configuration"] = PROMPT_SELECTION.model_dump()
     if session.engine.round == CONFIG.rounds:
         return {**view, "type": "final", "done": True}

@@ -12,9 +12,10 @@ from coworld.examples.meadow.game.engine import (
     parse_action,
     step,
 )
+from coworld.examples.meadow.player.policies import LlmPolicy
 from coworld.examples.meadow.shared.decision import decision_prompt, executed_action
 from coworld.examples.meadow.shared.prompts import PromptSelection
-from coworld.examples.meadow.player.policies import LlmPolicy
+from coworld.examples.meadow.shared.scenarios import scenario_family
 
 
 def main() -> None:
@@ -97,10 +98,12 @@ def main() -> None:
             str(seat): {"score": round(score, 3)}
             for seat, score in enumerate(state.scores)
         }
-        assert final["seed_family"] == run["seed_family"] == f"meadow-{run['seed']}"
+        assert final["seed_family"] == run["seed_family"] == scenario_family(config)
         assert run["scores"] == state.scores
         families.add(final["seed_family"])
-    assert len(families) >= 10
+    assert len(families) == 1, (
+        "policy seeds do not create different physical Meadow scenarios"
+    )
     print(
         f"PASS {len(manifest['runs'])} complete production source episodes", flush=True
     )

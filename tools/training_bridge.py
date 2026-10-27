@@ -1,7 +1,5 @@
 """Player-visible Meadow decisions through the shared Coworld JSONL protocol."""
 
-# ruff: noqa: E402
-
 from __future__ import annotations
 
 import argparse
@@ -26,8 +24,8 @@ from coworld.examples.meadow.player.policies import (
     SustainablePolicy,
     system_prompt,
 )
-
 from coworld.examples.meadow.shared.prompts import PromptConfig
+from coworld.examples.meadow.shared.scenarios import scenario_family
 
 MANIFEST = ROOT / "src/coworld/examples/meadow/coworld_manifest_template.json"
 MAX_PLAYERS = 12
@@ -121,6 +119,7 @@ class TrainingSession:
         view["prompt_template"] = self.selection.metadata(
             messages[0]["content"], messages[1]["content"]
         )
+        view["scenario_family"] = scenario_family(self.config)
         candidates = {
             f"{harvest}:{target}": {
                 "decision": {"harvest": harvest, "sanction": target},
