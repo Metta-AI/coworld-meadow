@@ -90,7 +90,12 @@ Freeze distinct resource configurations or horizons before constructing an indep
 Run complete wording workflows with `python tools/test_prompt_games.py`; `--original <checkout>` additionally compares
 canonical whole games against the original source. Native proof uses
 `python tools/test_native_trajectory.py <source-sha> <output> --variant default --wording mixed --prompt-seed 3 --mode accepted`.
-Omitting `--variant` runs the existing short diagnostic configuration; it does not establish published-budget parity.
+The default fault suite preserves its short diagnostic cases and adds a complete
+ordinary `default` game. An explicit `--mode` without `--variant` runs only the
+short diagnostic configuration; that case does not establish published-budget parity.
+For accepted and greedy native replies, an explicit variant also replays every
+decision through the training bridge and checks identical prompts, executed
+actions, and final scores. The bridge uses the native player's prompt renderer.
 These fixtures verify protocol correctness, not model quality or prevention of learning collapse.
 
 ## Run it

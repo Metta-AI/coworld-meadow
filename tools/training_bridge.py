@@ -22,8 +22,8 @@ from coworld.examples.meadow.player.policies import (
     EnforcerPolicy,
     LlmPolicy,
     SustainablePolicy,
-    system_prompt,
 )
+from coworld.examples.meadow.shared.decision import decision_prompt
 from coworld.examples.meadow.shared.prompts import PromptConfig
 from coworld.examples.meadow.shared.scenarios import scenario_family
 
@@ -98,24 +98,7 @@ class TrainingSession:
                 },
             }
         view = self.player_view()
-        messages = [
-            {
-                "role": "system",
-                "content": system_prompt(
-                    view, self.operator_prompt, selection=self.selection
-                ),
-            },
-            {
-                "role": "user",
-                "content": compact(
-                    {
-                        key: value
-                        for key, value in view.items()
-                        if key not in ("type", "round_seconds")
-                    }
-                ),
-            },
-        ]
+        messages = decision_prompt(view, self.operator_prompt, selection=self.selection)
         view["prompt_template"] = self.selection.metadata(
             messages[0]["content"], messages[1]["content"]
         )

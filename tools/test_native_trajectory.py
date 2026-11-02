@@ -31,21 +31,31 @@ def main() -> None:
     args = parser.parse_args()
     revision, output = args.revision, args.output
     ROOT = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(ROOT))
     root = Path(output).resolve()
     os.umask(0o077)
     root.mkdir(mode=0o700)
     reports = []
 
-    for mode in (
+    modes = (
         [args.mode]
         if args.mode
         else ["accepted", "greedy", "invalid", "throttled", "deadline"]
-    ):
-        folder = root / mode
+    )
+    cases = [(args.variant, mode) for mode in modes]
+    if args.variant is None and args.mode is None:
+        cases.append(("default", "accepted"))
+    for variant, mode in cases:
+        folder = root / (
+            f"{variant}-{mode}" if variant and args.variant is None else mode
+        )
         folder.mkdir(mode=0o700)
         archives = {}
 
         class Native(BaseHTTPRequestHandler):
+            scenario = mode
+            records = archives
+
             def log_message(self, *_):
                 pass
 
@@ -54,7 +64,7 @@ def main() -> None:
                 call_id = str(uuid4())
                 raw = (
                     '{"harvest":1,"message":"public speech"}'
-                    if mode != "invalid"
+                    if self.scenario != "invalid"
                     else "PRIVATE INVALID REPLY"
                 )
                 response = {
@@ -64,18 +74,18 @@ def main() -> None:
                     "stop_reason": "end_turn",
                     "usage": {"input_tokens": 100, "output_tokens": 10},
                 }
-                if mode == "greedy":
+                if self.scenario == "greedy":
                     response["sampling_evidence"] = {
                         "prompt_token_ids": [1],
                         "completion_token_ids": [2],
                         "behavior_log_probs": None,
                         "stop_reason": "eos",
                     }
-                status = 429 if mode == "throttled" else 200
+                status = 429 if self.scenario == "throttled" else 200
                 if status != 200:
                     response = {"error": "PRIVATE THROTTLE SENTINEL"}
                 text = json.dumps(response)
-                archives[call_id] = {
+                self.records[call_id] = {
                     "request": body,
                     "response": response,
                     "response_text": text,
@@ -86,7 +96,7 @@ def main() -> None:
                 self.send_header("Content-Type", "application/json")
                 self.send_header("X-Softmax-Llm-Call-Id", call_id)
                 self.send_header("X-Coworld-Checkpoint-Sha256", "a" * 64)
-                if mode == "deadline":
+                if self.scenario == "deadline":
                     self.send_header("Content-Length", str(len(text.encode())))
                     self.end_headers()
                     time.sleep(2.5)
@@ -114,7 +124,7 @@ def main() -> None:
             "players": [{"name": "one"}, {"name": "two"}],
             "player_connect_timeout_seconds": 10,
         }
-        if args.variant:
+        if variant:
             manifest = json.loads(
                 (
                     ROOT / "src/coworld/examples/meadow/coworld_manifest_template.json"
@@ -122,19 +132,19 @@ def main() -> None:
             )
             config = dict(
                 manifest["certification"]["game_config"]
-                if args.variant == "certification"
+                if variant == "certification"
                 else next(
                     entry["game_config"]
                     for entry in manifest["variants"]
-                    if entry["id"] == args.variant
+                    if entry["id"] == variant
                 )
             )
             config["tokens"] = [
                 f"token-{seat}" for seat in range(len(config["players"]))
             ]
         config.update(promptVariant=args.wording, promptSeed=args.prompt_seed)
-        from coworld.examples.meadow.shared.prompts import PromptConfig
         from coworld.examples.meadow.shared.decision import decision_prompt
+        from coworld.examples.meadow.shared.prompts import PromptConfig
 
         selection = PromptConfig.model_validate(config).resolve()
         config_path = folder / "config.json"
@@ -278,13 +288,54 @@ def main() -> None:
         assert "PRIVATE" not in public
         assert (folder / "trajectory.jsonl").stat().st_mode & 0o777 == 0o600
         (folder / "native-call-archives.json").write_text(json.dumps(archives))
+        bridge_decisions = None
+        if variant and mode in {"accepted", "greedy"}:
+            # Replay the complete published variant, preserving native prompts,
+            # simultaneous decisions, action normalization, and final scores.
+            from tools.training_bridge import TrainingSession
+
+            training = TrainingSession(
+                variant, "text", None, "PRIVATE OPERATOR SENTINEL"
+            )
+            current = training.reset(
+                {
+                    "seed": config.get("seed", 0),
+                    "players": len(config["players"]),
+                    "promptVariant": args.wording,
+                    "promptSeed": args.prompt_seed,
+                }
+            )
+            bridge_decisions = 0
+            for decision in decisions:
+                assert current["seat"] == int(decision["seat"])
+                assert current["messages"] == decision["prompt"]
+                selected = next(
+                    attempt
+                    for attempt in decision["attempts"]
+                    if attempt["attempt_id"] == decision["selected_attempt_id"]
+                )
+                result = training.step(
+                    {
+                        "decision_id": current["decision_id"],
+                        "response": selected["response"],
+                    }
+                )
+                assert result["kind"] == "accepted"
+                assert result["action"] == decision["executed_action"]
+                current = result["observation"]
+                bridge_decisions += 1
+            assert current["kind"] == "terminal"
+            assert current["scores"] == dict(
+                enumerate(json.loads((folder / "results.json").read_text())["scores"])
+            )
         reports.append(
             {
                 "mode": mode,
                 "decisions": len(decisions),
-                "variant": args.variant,
+                "variant": variant,
                 "prompt_configuration": selection.model_dump(),
                 "native_call_joins": len(archives),
+                "native_training_bridge_decisions": bridge_decisions,
                 "source_revision": revision,
                 "cohort": "local native HTTP/player/socket fixture; no hosted platform claim",
             }
