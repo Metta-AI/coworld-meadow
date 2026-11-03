@@ -21,12 +21,19 @@ def main() -> None:
     parser.add_argument("output")
     parser.add_argument(
         "--variant",
-        choices=["certification", "default", "anonymous", "institutions", "no-chat"],
+        choices=[
+            "certification",
+            "default",
+            "anonymous",
+            "institutions",
+            "no-chat",
+        ],
     )
     parser.add_argument("--wording", default="canonical")
     parser.add_argument("--prompt-seed", type=int, default=0)
     parser.add_argument(
-        "--mode", choices=["accepted", "greedy", "invalid", "throttled", "deadline"]
+        "--mode",
+        choices=["accepted", "greedy", "invalid", "throttled", "deadline"],
     )
     args = parser.parse_args()
     revision, output = args.revision, args.output
@@ -42,12 +49,17 @@ def main() -> None:
         if args.mode
         else ["accepted", "greedy", "invalid", "throttled", "deadline"]
     )
-    cases = [(args.variant, mode) for mode in modes]
+    cases = [(args.variant, mode, False) for mode in modes]
     if args.variant is None and args.mode is None:
-        cases.append(("default", "accepted"))
-    for variant, mode in cases:
+        cases.append(("default", "accepted", False))
+        cases.append(("default", "accepted", True))
+    for variant, mode, native_config in cases:
         folder = root / (
-            f"{variant}-{mode}" if variant and args.variant is None else mode
+            f"{variant}-native-config-{mode}"
+            if native_config
+            else f"{variant}-{mode}"
+            if variant and args.variant is None
+            else mode
         )
         folder.mkdir(mode=0o700)
         archives = {}
@@ -60,7 +72,9 @@ def main() -> None:
                 pass
 
             def do_POST(self):
-                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                body = json.loads(
+                    self.rfile.read(int(self.headers["Content-Length"]))
+                )
                 call_id = str(uuid4())
                 raw = (
                     '{"harvest":1,"message":"public speech"}'
@@ -106,7 +120,9 @@ def main() -> None:
                 self.end_headers()
                 self.wfile.write(payload)
 
-        native = ThreadingHTTPServer(("127.0.0.1", 0), Native, bind_and_activate=False)
+        native = ThreadingHTTPServer(
+            ("127.0.0.1", 0), Native, bind_and_activate=False
+        )
         native.request_queue_size = 32
         native.server_bind()
         native.server_activate()
@@ -127,7 +143,8 @@ def main() -> None:
         if variant:
             manifest = json.loads(
                 (
-                    ROOT / "src/coworld/examples/meadow/coworld_manifest_template.json"
+                    ROOT
+                    / "src/coworld/examples/meadow/coworld_manifest_template.json"
                 ).read_text()
             )
             config = dict(
@@ -141,6 +158,12 @@ def main() -> None:
             )
             config["tokens"] = [
                 f"token-{seat}" for seat in range(len(config["players"]))
+            ]
+        if native_config:
+            config["stock_start"] = 55
+            config["players"] = [
+                {"name": f"Native roster player {seat}"}
+                for seat in range(len(config["players"]))
             ]
         config.update(promptVariant=args.wording, promptSeed=args.prompt_seed)
         from coworld.examples.meadow.shared.decision import decision_prompt
@@ -157,7 +180,9 @@ def main() -> None:
             "COGAME_CONFIG_URI": config_path.as_uri(),
             "COGAME_RESULTS_URI": (folder / "results.json").as_uri(),
             "COGAME_SAVE_REPLAY_URI": (folder / "replay.json").as_uri(),
-            "COGAME_SAVE_TRAJECTORY_URI": (folder / "trajectory.jsonl").as_uri(),
+            "COGAME_SAVE_TRAJECTORY_URI": (
+                folder / "trajectory.jsonl"
+            ).as_uri(),
             "COWORLD_EPISODE_ID": "native-" + mode,
             "COWORLD_GAME_VERSION": "source-" + revision,
             "COWORLD_SOURCE_REVISION": revision,
@@ -184,7 +209,9 @@ def main() -> None:
                     with socket.socket() as probe:
                         if probe.connect_ex(("127.0.0.1", port)) == 0:
                             break
-                    assert game.poll() is None, (folder / "game.log").read_text()
+                    assert game.poll() is None, (
+                        folder / "game.log"
+                    ).read_text()
                     assert time.monotonic() < deadline
                     threading.Event().wait(0.01)
                 for slot, token in enumerate(config["tokens"]):
@@ -208,7 +235,9 @@ def main() -> None:
                         )
                     )
                 assert (
-                    game.wait(timeout=60 + config["rounds"] * config["round_seconds"])
+                    game.wait(
+                        timeout=60 + config["rounds"] * config["round_seconds"]
+                    )
                     == 0
                 ), (folder / "game.log").read_text()
                 for slot, player in enumerate(players):
@@ -251,7 +280,10 @@ def main() -> None:
                 seen.add(attempt["platform_call_id"])
                 archive = archives[attempt["platform_call_id"]]
                 assert attempt["prompt"] == expected_prompt
-                assert attempt["request"]["system"] == expected_prompt[0]["content"]
+                assert (
+                    attempt["request"]["system"]
+                    == expected_prompt[0]["content"]
+                )
                 assert attempt["request"]["messages"] == [expected_prompt[1]]
                 assert (
                     attempt["request"] == archive["request"]
@@ -280,7 +312,9 @@ def main() -> None:
                     decision["action_status"] == "fallback"
                     and decision["selected_attempt_id"] is None
                 )
-                assert all(not attempt["accepted"] for attempt in decision["attempts"])
+                assert all(
+                    not attempt["accepted"] for attempt in decision["attempts"]
+                )
         assert seen == set(archives), (seen, set(archives))
         public = (folder / "replay.json").read_text() + (
             folder / "game.log"
@@ -303,6 +337,7 @@ def main() -> None:
                     "players": len(config["players"]),
                     "promptVariant": args.wording,
                     "promptSeed": args.prompt_seed,
+                    "game_config": config,
                 }
             )
             bridge_decisions = 0
@@ -326,7 +361,9 @@ def main() -> None:
                 bridge_decisions += 1
             assert current["kind"] == "terminal"
             assert current["scores"] == dict(
-                enumerate(json.loads((folder / "results.json").read_text())["scores"])
+                enumerate(
+                    json.loads((folder / "results.json").read_text())["scores"]
+                )
             )
         reports.append(
             {
@@ -336,6 +373,7 @@ def main() -> None:
                 "prompt_configuration": selection.model_dump(),
                 "native_call_joins": len(archives),
                 "native_training_bridge_decisions": bridge_decisions,
+                "native_config_reset": native_config,
                 "source_revision": revision,
                 "cohort": "local native HTTP/player/socket fixture; no hosted platform claim",
             }

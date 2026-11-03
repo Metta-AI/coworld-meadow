@@ -37,7 +37,11 @@ def compact(value: object) -> str:
 
 class TrainingSession:
     def __init__(
-        self, variant: str, mode: str, rounds: int | None, operator_prompt: str = ""
+        self,
+        variant: str,
+        mode: str,
+        rounds: int | None,
+        operator_prompt: str = "",
     ):
         self.operator_prompt = operator_prompt
         manifest = json.loads(MANIFEST.read_text())
@@ -54,7 +58,15 @@ class TrainingSession:
         self.rounds = rounds
 
     def reset(self, request: dict[str, object]) -> dict[str, object]:
-        self.selection = PromptConfig.model_validate(request).resolve()
+        native_config = request.get("game_config", {})
+        if not isinstance(native_config, dict):
+            raise TypeError(
+                "game_config must be a native game configuration object"
+            )
+        config = {**self.base, **native_config}
+        self.selection = PromptConfig.model_validate(
+            {**config, **request}
+        ).resolve()
         if (
             "split" in request
             and request["split"] == "train"
@@ -62,12 +74,15 @@ class TrainingSession:
         ):
             raise ValueError("held-out wording is evaluation only")
         players = int(request["players"])
-        if players != len(self.base["players"]):
-            raise ValueError(f"Variant requires {len(self.base['players'])} seats")
-        config = dict(self.base)
+        if players != len(config["players"]):
+            raise ValueError(
+                f"Native configuration requires {len(config['players'])} seats"
+            )
         if self.rounds is not None:
             config["rounds"] = self.rounds
-        self.config = MeadowConfig.model_validate({**config, "num_players": players})
+        self.config = MeadowConfig.model_validate(
+            {**config, "num_players": players}
+        )
         self.round_seconds = float(config["round_seconds"])
         self.names = [player["name"] for player in config["players"]]
         self.state = new_state(self.config)
@@ -98,7 +113,9 @@ class TrainingSession:
                 },
             }
         view = self.player_view()
-        messages = decision_prompt(view, self.operator_prompt, selection=self.selection)
+        messages = decision_prompt(
+            view, self.operator_prompt, selection=self.selection
+        )
         view["prompt_template"] = self.selection.metadata(
             messages[0]["content"], messages[1]["content"]
         )
@@ -149,7 +166,9 @@ class TrainingSession:
                 },
                 "required": ["harvest"],
             },
-            "inference_mode": "text_action" if self.mode == "text" else "choice",
+            "inference_mode": "text_action"
+            if self.mode == "text"
+            else "choice",
             "typed_question": {
                 "state": view,
                 "instructions": "Choose harvest and optional sanction.",
@@ -169,11 +188,13 @@ class TrainingSession:
             self.state.round / self.config.rounds,
             float(view["stock"]) / self.config.stock_capacity,
             float(view["collapsed"]),
-            float(view["score"]) / (1 + self.config.rounds * self.config.max_harvest),
+            float(view["score"])
+            / (1 + self.config.rounds * self.config.max_harvest),
             float(view["your_last_harvest"] or 0) / self.config.max_harvest,
             float(view["last_round_total_harvest"] or 0)
             / (self.config.max_harvest * self.config.num_players),
-            float(view["sanctions_received_last_round"]) / self.config.num_players,
+            float(view["sanctions_received_last_round"])
+            / self.config.num_players,
             float(self.config.ledger_public),
             float(self.config.sanctions_enabled),
             *(
@@ -184,7 +205,8 @@ class TrainingSession:
                 for seat in range(MAX_PLAYERS)
             ),
             *(
-                float(view["last_round_harvests"][seat]) / self.config.max_harvest
+                float(view["last_round_harvests"][seat])
+                / self.config.max_harvest
                 if self.config.ledger_public
                 and view["last_round_harvests"] is not None
                 and seat < self.config.num_players
@@ -195,7 +217,9 @@ class TrainingSession:
         sanctions = [
             "none",
             *[
-                seat if seat != self.seat and self.config.sanctions_enabled else None
+                seat
+                if seat != self.seat and self.config.sanctions_enabled
+                else None
                 for seat in range(self.config.num_players)
             ],
         ]
@@ -230,7 +254,10 @@ class TrainingSession:
             return {"kind": "rejected", "reason": "stale decision"}
         raw = LlmPolicy._parse(str(request["response"]))
         if self.mode == "choice":
-            if not isinstance(raw, dict) or raw.keys() != {"harvest", "sanction"}:
+            if not isinstance(raw, dict) or raw.keys() != {
+                "harvest",
+                "sanction",
+            }:
                 return {
                     "kind": "rejected",
                     "reason": "choice needs harvest and sanction",
