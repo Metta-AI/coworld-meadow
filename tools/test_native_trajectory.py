@@ -33,7 +33,13 @@ def main() -> None:
     parser.add_argument("--prompt-seed", type=int, default=0)
     parser.add_argument(
         "--mode",
-        choices=["accepted", "greedy", "invalid", "throttled", "deadline"],
+        choices=[
+            "accepted",
+            "greedy",
+            "invalid",
+            "throttled",
+            "deadline",
+        ],
     )
     args = parser.parse_args()
     revision, output = args.revision, args.output
@@ -49,13 +55,16 @@ def main() -> None:
         if args.mode
         else ["accepted", "greedy", "invalid", "throttled", "deadline"]
     )
-    cases = [(args.variant, mode, False) for mode in modes]
+    cases = [(args.variant, mode, False, False) for mode in modes]
     if args.variant is None and args.mode is None:
-        cases.append(("default", "accepted", False))
-        cases.append(("default", "accepted", True))
-    for variant, mode, native_config in cases:
+        cases.append(("default", "accepted", False, False))
+        cases.append(("default", "accepted", True, False))
+        cases.append(("default", "accepted", True, True))
+    for variant, mode, native_config, mixed_roster in cases:
         folder = root / (
-            f"{variant}-native-config-{mode}"
+            f"{variant}-mixed-roster-{mode}"
+            if mixed_roster
+            else f"{variant}-native-config-{mode}"
             if native_config
             else f"{variant}-{mode}"
             if variant and args.variant is None
@@ -166,7 +175,9 @@ def main() -> None:
                 for seat in range(len(config["players"]))
             ]
         config.update(promptVariant=args.wording, promptSeed=args.prompt_seed)
-        from coworld.examples.meadow.shared.decision import decision_prompt
+        from coworld.examples.meadow.shared.decision import (
+            decision_prompt,
+        )
         from coworld.examples.meadow.shared.prompts import PromptConfig
 
         selection = PromptConfig.model_validate(config).resolve()
@@ -197,7 +208,11 @@ def main() -> None:
         logs = []
         with (folder / "game.log").open("w") as game_log:
             game = subprocess.Popen(
-                [sys.executable, "-m", "coworld.examples.meadow.game.server"],
+                [
+                    sys.executable,
+                    "-m",
+                    "coworld.examples.meadow.game.server",
+                ],
                 cwd=ROOT,
                 env=env,
                 stdout=game_log,
@@ -223,11 +238,16 @@ def main() -> None:
                                 sys.executable,
                                 "-m",
                                 "coworld.examples.meadow.player.player",
-                                "llm",
+                                "sustainable"
+                                if mixed_roster and slot
+                                else "llm",
                             ],
                             cwd=ROOT,
                             env={
                                 **env,
+                                "COWORLD_MEADOW_PROMPT": ""
+                                if mixed_roster and slot
+                                else "PRIVATE OPERATOR SENTINEL",
                                 "COWORLD_PLAYER_WS_URL": f"ws://127.0.0.1:{port}/player?slot={slot}&token={token}",
                             },
                             stdout=log,
@@ -271,9 +291,13 @@ def main() -> None:
             )
             expected_prompt = decision_prompt(
                 decision["observation"],
-                "PRIVATE OPERATOR SENTINEL",
+                ""
+                if mixed_roster and int(decision["seat"])
+                else "PRIVATE OPERATOR SENTINEL",
                 selection=selection,
             )
+            if mode in {"accepted", "greedy"}:
+                assert decision["prompt"] == expected_prompt
             for attempt in decision["attempts"]:
                 if attempt["platform_call_id"] is None:
                     continue
@@ -306,7 +330,11 @@ def main() -> None:
                     chosen["accepted"]
                     and chosen["parsed_action"] == decision["executed_action"]
                 )
-                assert chosen["model"] == "fixture/served"
+                if mixed_roster and int(decision["seat"]):
+                    assert chosen["origin"] != "model"
+                    assert chosen["platform_call_id"] is None
+                else:
+                    assert chosen["model"] == "fixture/served"
             else:
                 assert (
                     decision["action_status"] == "fallback"
@@ -338,6 +366,14 @@ def main() -> None:
                     "promptVariant": args.wording,
                     "promptSeed": args.prompt_seed,
                     "game_config": config,
+                    **(
+                        {
+                            "operator_prompts": ["PRIVATE OPERATOR SENTINEL"]
+                            + [""] * (len(config["players"]) - 1)
+                        }
+                        if mixed_roster
+                        else {}
+                    ),
                 }
             )
             bridge_decisions = 0
@@ -365,6 +401,35 @@ def main() -> None:
                     json.loads((folder / "results.json").read_text())["scores"]
                 )
             )
+            if mixed_roster:
+                reset = {
+                    "seed": 17,
+                    "players": len(config["players"]),
+                    "game_config": config,
+                }
+                for invalid in [[], [""] * 7, [0] * 8, "not-a-list"]:
+                    try:
+                        training.reset({**reset, "operator_prompts": invalid})
+                    except ValueError:
+                        pass
+                    else:
+                        raise AssertionError(
+                            "invalid per-seat prompts accepted"
+                        )
+                prompts = ["PRIVATE OPERATOR SENTINEL"] + [""] * 7
+                training.reset({**reset, "operator_prompts": prompts})
+                prompts[0] = "mutated caller list"
+                assert (
+                    training.observation()["messages"]
+                    == decisions[0]["prompt"]
+                )
+                current = training.reset(reset)
+                assert training.operator_prompts is None
+                assert current["messages"] == decision_prompt(
+                    training.player_view(),
+                    "PRIVATE OPERATOR SENTINEL",
+                    selection=training.selection,
+                )
         reports.append(
             {
                 "mode": mode,
@@ -374,6 +439,7 @@ def main() -> None:
                 "native_call_joins": len(archives),
                 "native_training_bridge_decisions": bridge_decisions,
                 "native_config_reset": native_config,
+                "mixed_roster_per_seat_prompts": mixed_roster,
                 "source_revision": revision,
                 "cohort": "local native HTTP/player/socket fixture; no hosted platform claim",
             }
