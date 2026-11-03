@@ -44,6 +44,7 @@ class TrainingSession:
         operator_prompt: str = "",
     ):
         self.operator_prompt = operator_prompt
+        self.operator_prompts: list[str] | None = None
         manifest = json.loads(MANIFEST.read_text())
         self.base = (
             manifest["certification"]["game_config"]
@@ -78,6 +79,18 @@ class TrainingSession:
             raise ValueError(
                 f"Native configuration requires {len(config['players'])} seats"
             )
+        operator_prompts = request.get("operator_prompts")
+        if operator_prompts is not None and (
+            not isinstance(operator_prompts, list)
+            or len(operator_prompts) != players
+            or any(not isinstance(prompt, str) for prompt in operator_prompts)
+        ):
+            raise ValueError(
+                "operator_prompts must contain one string per seat"
+            )
+        self.operator_prompts = (
+            list(operator_prompts) if operator_prompts is not None else None
+        )
         if self.rounds is not None:
             config["rounds"] = self.rounds
         self.config = MeadowConfig.model_validate(
@@ -100,7 +113,11 @@ class TrainingSession:
 
     def player_view(self) -> dict[str, object]:
         return observation(
-            self.state, self.config, self.seat, self.names, self.round_seconds
+            self.state,
+            self.config,
+            self.seat,
+            self.names,
+            self.round_seconds,
         )
 
     def observation(self) -> dict[str, object]:
@@ -114,7 +131,11 @@ class TrainingSession:
             }
         view = self.player_view()
         messages = decision_prompt(
-            view, self.operator_prompt, selection=self.selection
+            view,
+            self.operator_prompts[self.seat]
+            if self.operator_prompts is not None
+            else self.operator_prompt,
+            selection=self.selection,
         )
         view["prompt_template"] = self.selection.metadata(
             messages[0]["content"], messages[1]["content"]
